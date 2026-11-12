@@ -203,50 +203,49 @@ elif step == "2 · TOWS Evaluation":
     st.write("Select an intersection to create a strategic objective. Hover over a code to see its SWOT factor. The objective list on the right controls editing and removal.")
     if any(not swot[q] for q in QUADRANTS):
         st.info("Add at least one Strength, Weakness, Opportunity, and Threat to populate all TOWS intersections.")
-    left, right = st.columns([1.2, 1])
-    with left:
-        st.markdown("#### TOWS Matrix")
-        st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open ⋯ to link existing objectives.")
-        matrix_columns = st.columns(2, gap="medium")
-        for pair_index, (q1, q2, _, _) in enumerate(PAIR_TYPES):
-            with matrix_columns[pair_index % 2]:
-                with st.container(border=True):
-                    st.markdown(f"**{q1} × {q2}**")
-                    a_items, b_items = swot[q1], swot[q2]
-                    if not a_items or not b_items:
-                        st.caption("Add factors in both categories to see this intersection matrix.")
-                        continue
-                    header_cols = st.columns([0.8, *([1] * len(b_items))])
-                    with header_cols[0]:
-                        st.caption("Factor")
-                    for col, b in zip(header_cols[1:], b_items):
+    st.markdown("#### TOWS Matrix")
+    st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open ⋯ to link existing objectives.")
+    matrix_left, matrix_right, objective_panel = st.columns([0.8, 0.8, 1.2], gap="medium")
+    for pair_index, (q1, q2, _, _) in enumerate(PAIR_TYPES):
+        matrix_panel = matrix_left if pair_index % 2 == 0 else matrix_right
+        with matrix_panel:
+            with st.container(border=True):
+                st.markdown(f"**{q1} × {q2}**")
+                a_items, b_items = swot[q1], swot[q2]
+                if not a_items or not b_items:
+                    st.caption("Add factors in both categories to see this intersection matrix.")
+                    continue
+                header_cols = st.columns([0.8, *([1] * len(b_items))])
+                with header_cols[0]:
+                    st.caption("Factor")
+                for col, b in zip(header_cols[1:], b_items):
+                    with col:
+                        tip = html.escape(str(b["factor"]), quote=True)
+                        st.markdown(f"<span class='code' title='{tip}'>{b['code']}</span>", unsafe_allow_html=True)
+                for a in a_items:
+                    cell_cols = st.columns([0.8, *([1] * len(b_items))])
+                    with cell_cols[0]:
+                        tip = html.escape(str(a["factor"]), quote=True)
+                        st.markdown(f"<span class='code' title='{tip}'>{a['code']}</span>", unsafe_allow_html=True)
+                    for col, b in zip(cell_cols[1:], b_items):
+                        links = query("SELECT o.id FROM v2_tows_links l JOIN v2_objectives o ON o.id=l.objective_id WHERE l.swot_a=? AND l.swot_b=? AND o.department=? ORDER BY o.id", (a["id"], b["id"], department))
+                        global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
+                        label = " · ".join(str(global_numbers[x["id"]]) for x in links if x["id"] in global_numbers) if links else "＋"
                         with col:
-                            tip = html.escape(str(b["factor"]), quote=True)
-                            st.markdown(f"<span class='code' title='{tip}'>{b['code']}</span>", unsafe_allow_html=True)
-                    for a in a_items:
-                        cell_cols = st.columns([0.8, *([1] * len(b_items))])
-                        with cell_cols[0]:
-                            tip = html.escape(str(a["factor"]), quote=True)
-                            st.markdown(f"<span class='code' title='{tip}'>{a['code']}</span>", unsafe_allow_html=True)
-                        for col, b in zip(cell_cols[1:], b_items):
-                            links = query("SELECT o.id FROM v2_tows_links l JOIN v2_objectives o ON o.id=l.objective_id WHERE l.swot_a=? AND l.swot_b=? AND o.department=? ORDER BY o.id", (a["id"], b["id"], department))
-                            global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
-                            label = " · ".join(str(global_numbers[x["id"]]) for x in links if x["id"] in global_numbers) if links else "＋"
-                            with col:
-                                if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
-                                    st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
-                                    st.session_state["show_objective_form"] = True
-                                    st.rerun()
-                                with st.popover("⋯", help="Link an existing objective", use_container_width=True):
-                                    if objectives:
-                                        existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
-                                        if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
-                                            for oid in existing:
-                                                write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
-                                            st.rerun()
-                                    else:
-                                        st.caption("Create an objective first.")
-    with right:
+                            if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
+                                st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
+                                st.session_state["show_objective_form"] = True
+                                st.rerun()
+                            with st.popover("⋯", help="Link an existing objective", use_container_width=True):
+                                if objectives:
+                                    existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
+                                    if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
+                                        for oid in existing:
+                                            write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
+                                        st.rerun()
+                                else:
+                                    st.caption("Create an objective first.")
+    with objective_panel:
         st.markdown("#### Strategic Objective → Perspective")
         if objectives:
             for number, obj in enumerate(objectives, 1):
