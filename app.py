@@ -391,12 +391,14 @@ elif step == "5 · Presentation View":
     support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
     st.markdown("### Support Needed")
     if support:
-        for o in support: st.write(f"**{o['owner_department']}** · {objective_statement(o)} · Owner: {o['owner'] or 'Not specified'}")
+        support_table = [{"Supporting Department":o["owner_department"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified"} for o in support]
+        st.dataframe(pd.DataFrame(support_table), use_container_width=True, hide_index=True)
     else: st.caption("No cross-department KPI owners assigned.")
     st.markdown("### Dependency from Other Departments")
     incoming=query("SELECT o.*,s.actual,s.frequency,s.owner,s.owner_department FROM v2_objectives o JOIN v2_scorecard s ON s.objective_id=o.id WHERE s.owner_department=? AND o.department<>? ORDER BY o.department,o.id", (department,department))
     if incoming:
-        for o in incoming: st.write(f"**{o['department']}** · {o['perspective']} · {objective_statement(o)} · Owner: {o['owner'] or 'Not specified'} · {o['frequency'] or 'Frequency not set'}")
+        dependency_table = [{"Department":o["department"],"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified","Review Frequency":o["frequency"] or "Not set"} for o in incoming]
+        st.dataframe(pd.DataFrame(dependency_table), use_container_width=True, hide_index=True)
     else: st.caption("No KPIs owned by this department on other scorecards.")
 
 elif step == "6 · Excel Export":
