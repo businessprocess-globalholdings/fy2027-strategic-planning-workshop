@@ -29,18 +29,31 @@ def using_supabase():
     return bool(database_url())
 
 
+@st.cache_resource
+def postgres_pool(url):
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
+
+    return ConnectionPool(
+        conninfo=url,
+        kwargs={"row_factory": dict_row, "connect_timeout": 10, "prepare_threshold": None},
+        min_size=1,
+        max_size=8,
+        open=True,
+    )
+
+
 def db():
     url = database_url()
     if url:
-        import psycopg
-        from psycopg.rows import dict_row
-        return psycopg.connect(url, row_factory=dict_row, connect_timeout=10, prepare_threshold=None)
+        return postgres_pool(url).connection()
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys=ON")
     return con
 
 
+@st.cache_resource
 def init_db():
     if using_supabase():
         with db() as con:
@@ -87,7 +100,7 @@ def init_db():
               owner_department text NOT NULL DEFAULT ''
             )
             """)
-        return
+        return True
     with db() as con:
         con.executescript("""
         CREATE TABLE IF NOT EXISTS v2_swot (
@@ -114,6 +127,7 @@ def init_db():
           actual REAL, frequency TEXT NOT NULL DEFAULT '', owner TEXT NOT NULL DEFAULT '', owner_department TEXT NOT NULL DEFAULT ''
         );
         """)
+    return True
 
 
 def query(sql, args=()):
@@ -171,10 +185,25 @@ with st.sidebar:
     step = st.radio("Workshop steps", ["1 · SWOT Analysis", "2 · TOWS Evaluation", "3 · Strategy Map", "4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"])
     st.caption("Your selections and entries save automatically.")
 
-swot = {q: code_rows(department, q) for q in QUADRANTS}
-objectives = query("SELECT * FROM v2_objectives WHERE department=? ORDER BY id", (department,))
+needs_swot = step in {"1 · SWOT Analysis", "2 · TOWS Evaluation", "6 · Excel Export"}
+swot_rows = query("SELECT * FROM v2_swot WHERE department=? ORDER BY id", (department,)) if needs_swot else []
+swot = {q: [] for q in QUADRANTS}
+prefixes = {"Strength": "S", "Weakness": "W", "Opportunity": "O", "Threat": "T"}
+for item in swot_rows:
+    category = item["quadrant"]
+    item["code"] = f"{prefixes[category]}{len(swot[category]) + 1}"
+    swot[category].append(item)
+needs_objectives = step != "1 · SWOT Analysis"
+objectives = query("SELECT * FROM v2_objectives WHERE department=? ORDER BY id", (department,)) if needs_objectives else []
 obj_by_id = {o["id"]: o for o in objectives}
-own_rows = query("SELECT o.*,s.actual,s.frequency,s.owner,s.owner_department FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id", (department,))
+needs_scorecard_rows = step in {"4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"}
+own_rows = query("SELECT o.*,s.actual,s.frequency,s.owner,s.owner_department FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id", (department,)) if needs_scorecard_rows else []
+scorecard_by_id = {o["id"]: o for o in own_rows}
+tows_links_by_cell = {}
+if step == "2 · TOWS Evaluation":
+    link_rows = query("SELECT l.swot_a,l.swot_b,o.id FROM v2_tows_links l JOIN v2_objectives o ON o.id=l.objective_id WHERE o.department=? ORDER BY o.id", (department,))
+    for link in link_rows:
+        tows_links_by_cell.setdefault((link["swot_a"], link["swot_b"]), []).append(link["id"])
 
 if step == "1 · SWOT Analysis":
     st.subheader("SWOT Analysis")
@@ -228,9 +257,9 @@ elif step == "2 · TOWS Evaluation":
                         tip = html.escape(str(a["factor"]), quote=True)
                         st.markdown(f"<span class='code' title='{tip}'>{a['code']}</span>", unsafe_allow_html=True)
                     for col, b in zip(cell_cols[1:], b_items):
-                        links = query("SELECT o.id FROM v2_tows_links l JOIN v2_objectives o ON o.id=l.objective_id WHERE l.swot_a=? AND l.swot_b=? AND o.department=? ORDER BY o.id", (a["id"], b["id"], department))
+                        links = tows_links_by_cell.get((a["id"], b["id"]), [])
                         global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
-                        label = " · ".join(str(global_numbers[x["id"]]) for x in links if x["id"] in global_numbers) if links else "＋"
+                        label = " · ".join(str(global_numbers[x]) for x in links if x in global_numbers) if links else "＋"
                         with col:
                             if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
                                 st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
@@ -344,8 +373,7 @@ elif step == "4 · Balanced Scorecard":
     st.subheader("FY2027 Balanced Scorecard")
     if not objectives: st.info("Create objectives in TOWS Evaluation first.")
     for obj in objectives:
-        prior = query("SELECT * FROM v2_scorecard WHERE objective_id=?", (obj["id"],))
-        data = prior[0] if prior else {"actual": None, "frequency":"", "owner":"", "owner_department":department}
+        data = scorecard_by_id.get(obj["id"], {"actual": None, "frequency":"", "owner":"", "owner_department":department})
         with st.container(border=True):
             st.markdown(f"**{obj['perspective']}** · {objective_statement(obj)}")
             st.caption("KPI / measure: strategic objective")
