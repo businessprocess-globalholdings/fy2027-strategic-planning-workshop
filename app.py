@@ -384,8 +384,9 @@ elif step == "5 · Presentation View":
         if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id:
             st.caption(f"{obj_by_id[a['source_id']]['goal']} {'→' if a['line_type']=='Straight arrow' else '⇢'} {obj_by_id[a['target_id']]['goal']}")
     st.markdown("### Main Balanced Scorecard")
+    main_rows = [o for o in own_rows if not o["owner_department"] or o["owner_department"] == department]
     table=[]
-    for o in own_rows:
+    for o in main_rows:
         table.append({"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"FY2026 Actual":o["actual"],"Target Improvement":o["improvement"],"FY2027 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"]})
     if table: st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
     support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
