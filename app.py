@@ -234,46 +234,84 @@ elif step == "2 · TOWS Evaluation":
         st.info("Add at least one Strength, Weakness, Opportunity, and Threat to populate all TOWS intersections.")
     st.markdown("#### TOWS Matrix")
     st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open ⋯ to link existing objectives.")
-    matrix_left, matrix_right, objective_panel = st.columns([0.8, 0.8, 1.2], gap="medium")
-    for pair_index, (q1, q2, _, _) in enumerate(PAIR_TYPES):
-        matrix_panel = matrix_left if pair_index % 2 == 0 else matrix_right
-        with matrix_panel:
-            with st.container(border=True):
-                st.markdown(f"**{q1} × {q2}**")
-                a_items, b_items = swot[q1], swot[q2]
-                if not a_items or not b_items:
-                    st.caption("Add factors in both categories to see this intersection matrix.")
-                    continue
-                header_cols = st.columns([0.8, *([1] * len(b_items))])
-                with header_cols[0]:
-                    st.caption("Factor")
-                for col, b in zip(header_cols[1:], b_items):
-                    with col:
-                        tip = html.escape(str(b["factor"]), quote=True)
-                        st.markdown(f"<span class='code' title='{tip}'>{b['code']}</span>", unsafe_allow_html=True)
-                for a in a_items:
-                    cell_cols = st.columns([0.8, *([1] * len(b_items))])
-                    with cell_cols[0]:
-                        tip = html.escape(str(a["factor"]), quote=True)
-                        st.markdown(f"<span class='code' title='{tip}'>{a['code']}</span>", unsafe_allow_html=True)
-                    for col, b in zip(cell_cols[1:], b_items):
-                        links = tows_links_by_cell.get((a["id"], b["id"]), [])
-                        global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
-                        label = " · ".join(str(global_numbers[x]) for x in links if x in global_numbers) if links else "＋"
+    matrix_area, objective_panel = st.columns([1.6, 1.2], gap="medium")
+    with matrix_area:
+        matrix_left, matrix_right = st.columns([1, 1], gap="small")
+        for pair_index, (q1, q2, _, _) in enumerate(PAIR_TYPES):
+            matrix_panel = matrix_left if pair_index % 2 == 0 else matrix_right
+            with matrix_panel:
+                with st.container(border=True):
+                    st.markdown(f"**{q1} × {q2}**")
+                    a_items, b_items = swot[q1], swot[q2]
+                    if not a_items or not b_items:
+                        st.caption("Add factors in both categories to see this intersection matrix.")
+                        continue
+                    header_cols = st.columns([0.8, *([1] * len(b_items))])
+                    with header_cols[0]:
+                        st.caption("Factor")
+                    for col, b in zip(header_cols[1:], b_items):
                         with col:
-                            if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
-                                st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
-                                st.session_state["show_objective_form"] = True
-                                st.rerun()
-                            with st.popover("⋯", help="Link an existing objective", use_container_width=True):
-                                if objectives:
-                                    existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
-                                    if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
-                                        for oid in existing:
-                                            write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
-                                        st.rerun()
-                                else:
-                                    st.caption("Create an objective first.")
+                            tip = html.escape(str(b["factor"]), quote=True)
+                            st.markdown(f"<span class='code' title='{tip}'>{b['code']}</span>", unsafe_allow_html=True)
+                    for a in a_items:
+                        cell_cols = st.columns([0.8, *([1] * len(b_items))])
+                        with cell_cols[0]:
+                            tip = html.escape(str(a["factor"]), quote=True)
+                            st.markdown(f"<span class='code' title='{tip}'>{a['code']}</span>", unsafe_allow_html=True)
+                        for col, b in zip(cell_cols[1:], b_items):
+                            links = tows_links_by_cell.get((a["id"], b["id"]), [])
+                            global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
+                            label = " · ".join(str(global_numbers[x]) for x in links if x in global_numbers) if links else "＋"
+                            with col:
+                                if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
+                                    st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
+                                    st.session_state["show_objective_form"] = True
+                                    st.rerun()
+                                with st.popover("⋯", help="Link an existing objective", use_container_width=True):
+                                    if objectives:
+                                        existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
+                                        if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
+                                            for oid in existing:
+                                                write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
+                                            st.rerun()
+                                    else:
+                                        st.caption("Create an objective first.")
+        active = st.session_state.get("active_intersection")
+        if st.session_state.get("show_objective_form") and active:
+            a_id,b_id,a_code,b_code = active
+            st.divider()
+            st.markdown(f"### New objective for {a_code} × {b_code}")
+            with st.form("new-tows-objective", clear_on_submit=True):
+                goal = st.text_input("Direction / goal", placeholder="Increase successfully fulfilled bookings")
+                c1,c2,c3 = st.columns(3)
+                improvement = c1.number_input("Improvement (Δ)", value=0.0, step=1.0, help="Enter a positive amount for an increase or a negative amount for a decrease.")
+                baseline_raw = c2.text_input("FY2026 baseline (leave blank if new)")
+                unit = c3.text_input("Unit", placeholder="bookings, %, Php…")
+                baseline_num = None
+                if baseline_raw.strip():
+                    try: baseline_num = float(baseline_raw.replace(",", ""))
+                    except ValueError: st.warning("Enter a numeric baseline, or leave it blank for a new target.")
+                target_guess = baseline_num + improvement if baseline_num is not None else 0.0
+                target = st.number_input("FY2027 target" + (" (calculated)" if baseline_num is not None else " (enter new target)"), value=float(target_guess), step=1.0, disabled=baseline_num is not None)
+                deadline = st.date_input("Deadline", value=date(2027,12,31), min_value=date(2026,1,1), max_value=date(2030,12,31))
+                perspective = st.selectbox("Strategic perspective", PERSPECTIVES)
+                c1,c2 = st.columns(2)
+                create = c1.form_submit_button("Confirm objective", type="primary")
+                cancel = c2.form_submit_button("Cancel")
+                if create:
+                    if not goal.strip(): st.error("Enter a direction or goal.")
+                    elif baseline_raw.strip() and baseline_num is None: st.error("Baseline must be numeric or blank.")
+                    else:
+                        final_target = target_guess if baseline_num is not None else target
+                        oid = write("INSERT INTO v2_objectives(department,goal,improvement,baseline,target,unit,deadline,perspective) VALUES(?,?,?,?,?,?,?,?)", (department,goal.strip(),improvement if improvement else None,baseline_num,final_target,unit.strip(),deadline.isoformat(),perspective))
+                        write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?)", (oid,a_id,b_id))
+                        write("INSERT INTO v2_scorecard(objective_id) VALUES(?) ON CONFLICT DO NOTHING", (oid,))
+                        st.session_state["show_objective_form"] = False
+                        st.rerun()
+                if cancel:
+                    st.session_state["show_objective_form"] = False
+                    st.rerun()
+
     with objective_panel:
         st.markdown("#### Strategic Objective → Perspective")
         if objectives:
@@ -298,41 +336,6 @@ elif step == "2 · TOWS Evaluation":
                         write("DELETE FROM v2_objectives WHERE id=?", (obj["id"],)); st.rerun()
         else:
             st.caption("Objectives will appear here as intersections are developed.")
-    active = st.session_state.get("active_intersection")
-    if st.session_state.get("show_objective_form") and active:
-        a_id,b_id,a_code,b_code = active
-        st.divider()
-        st.markdown(f"### New objective for {a_code} × {b_code}")
-        with st.form("new-tows-objective", clear_on_submit=True):
-            goal = st.text_input("Direction / goal", placeholder="Increase successfully fulfilled bookings")
-            c1,c2,c3 = st.columns(3)
-            improvement = c1.number_input("Improvement (Δ)", value=0.0, step=1.0, help="Enter a positive amount for an increase or a negative amount for a decrease.")
-            baseline_raw = c2.text_input("FY2026 baseline (leave blank if new)")
-            unit = c3.text_input("Unit", placeholder="bookings, %, Php…")
-            baseline_num = None
-            if baseline_raw.strip():
-                try: baseline_num = float(baseline_raw.replace(",", ""))
-                except ValueError: st.warning("Enter a numeric baseline, or leave it blank for a new target.")
-            target_guess = baseline_num + improvement if baseline_num is not None else 0.0
-            target = st.number_input("FY2027 target" + (" (calculated)" if baseline_num is not None else " (enter new target)"), value=float(target_guess), step=1.0, disabled=baseline_num is not None)
-            deadline = st.date_input("Deadline", value=date(2027,12,31), min_value=date(2026,1,1), max_value=date(2030,12,31))
-            perspective = st.selectbox("Strategic perspective", PERSPECTIVES)
-            c1,c2 = st.columns(2)
-            create = c1.form_submit_button("Confirm objective", type="primary")
-            cancel = c2.form_submit_button("Cancel")
-            if create:
-                if not goal.strip(): st.error("Enter a direction or goal.")
-                elif baseline_raw.strip() and baseline_num is None: st.error("Baseline must be numeric or blank.")
-                else:
-                    final_target = target_guess if baseline_num is not None else target
-                    oid = write("INSERT INTO v2_objectives(department,goal,improvement,baseline,target,unit,deadline,perspective) VALUES(?,?,?,?,?,?,?,?)", (department,goal.strip(),improvement if improvement else None,baseline_num,final_target,unit.strip(),deadline.isoformat(),perspective))
-                    write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?)", (oid,a_id,b_id))
-                    write("INSERT INTO v2_scorecard(objective_id) VALUES(?) ON CONFLICT DO NOTHING", (oid,))
-                    st.session_state["show_objective_form"] = False
-                    st.rerun()
-            if cancel:
-                st.session_state["show_objective_form"] = False
-                st.rerun()
 
 elif step == "3 · Strategy Map":
     st.subheader("Strategy Map")
