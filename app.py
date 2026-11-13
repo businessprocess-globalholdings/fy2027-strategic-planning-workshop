@@ -463,7 +463,7 @@ elif step == "3 · Strategy Map":
                 map_center_y = map_height / 2
                 y = map_center_y + (y - map_center_y) * 0.90
                 full_text = objective_statement(obj)
-                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=26, break_long_words=True, break_on_hyphens=False))
+                visual_text = f"{objective_number}. {full_text}"
                 is_pending = obj["id"] == pending_source_id
                 node_objective_ids.append(obj["id"])
                 node_data.append({
@@ -475,7 +475,7 @@ elif step == "3 · Strategy Map":
                     "symbol": "roundRect",
                     "symbolSize": [card_width, card_height],
                     "itemStyle": {"color": perspective_colors[perspective], "borderColor": "#d69b18" if is_pending else "#c4c8ce", "borderWidth": 4 if is_pending else 1, "shadowBlur": 8 if is_pending else 0, "shadowColor": "rgba(214,155,24,.28)"},
-                    "label": {"show": True, "position": "insideLeft", "distance": 12, "width": card_width - 30, "overflow": "break", "fontSize": 12, "lineHeight": 16, "color": "#18252c", "align": "left", "verticalAlign": "middle"},
+                    "label": {"show": True, "position": "insideLeft", "distance": 12, "width": card_width - 30, "overflow": "breakAll", "fontSize": 12, "lineHeight": 16, "color": "#18252c", "align": "left", "verticalAlign": "middle"},
                 })
 
         link_data = []
