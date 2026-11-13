@@ -233,9 +233,12 @@ elif step == "2 · TOWS Evaluation":
     st.write("Select an intersection to create a strategic objective. Hover over a code to see its SWOT factor. The objective list on the right controls editing and removal.")
     if any(not swot[q] for q in QUADRANTS):
         st.info("Add at least one Strength, Weakness, Opportunity, and Threat to populate all TOWS intersections.")
-    st.markdown("#### TOWS Matrix")
-    st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open the chevron to link existing objectives.")
     matrix_area, objective_panel = st.columns([1.6, 1.2], gap="medium")
+    with matrix_area:
+        st.markdown("#### TOWS Matrix")
+        st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open the chevron to link existing objectives.")
+    with objective_panel:
+        st.markdown("#### Strategic Objective → Perspective")
     with matrix_area:
         matrix_left, matrix_right = st.columns([1, 1], gap="small")
         for pair_index, (q1, q2, _, _) in enumerate(PAIR_TYPES):
@@ -345,7 +348,6 @@ elif step == "2 · TOWS Evaluation":
                     st.rerun()
 
     with objective_panel:
-        st.markdown("#### Strategic Objective → Perspective")
         if objectives:
             for number, obj in enumerate(objectives, 1):
                 with st.container(border=True):
