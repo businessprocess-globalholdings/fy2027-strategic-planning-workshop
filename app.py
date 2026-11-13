@@ -283,7 +283,6 @@ elif step == "2 · TOWS Evaluation":
         if st.session_state.get("show_objective_form") and active:
             a_id,b_id,a_code,b_code = active
             st.divider()
-            st.markdown('<div id="new-objective-form"></div>', unsafe_allow_html=True)
             st.markdown(f"### New objective for {a_code} × {b_code}")
             if st.session_state.pop("scroll_to_objective_form", False):
                 scroll_request_id = st.session_state.get("scroll_request_id", 0)
@@ -292,8 +291,14 @@ elif step == "2 · TOWS Evaluation":
                     (() => {{
                       const scrollToForm = () => {{
                         try {{
-                          const target = window.parent.document.getElementById("new-objective-form");
-                          if (target) target.scrollIntoView({{ behavior: "smooth", block: "start", inline: "nearest" }});
+                          const doc = window.parent.document;
+                          const target = Array.from(doc.querySelectorAll("h3")).find(
+                            node => node.textContent.trim().startsWith("New objective for ")
+                          );
+                          if (target) {{
+                            target.style.scrollMarginTop = "16px";
+                            target.scrollIntoView({{ behavior: "smooth", block: "start", inline: "nearest" }});
+                          }}
                         }} catch (error) {{}}
                       }};
                       requestAnimationFrame(() => {{
