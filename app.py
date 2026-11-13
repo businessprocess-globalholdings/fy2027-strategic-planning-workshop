@@ -642,23 +642,8 @@ elif step == "4 · Balanced Scorecard":
                 "De-prioritize": bool(data.get("deprioritized", False)),
             })
         scorecard_df = pd.DataFrame(table_rows).set_index("_Objective ID")
-        styled_scorecard = scorecard_df.style.apply(
-            lambda row: ["background-color: #555555; color: #e0e0e0" if row["De-prioritize"] else "" for _ in row],
-            axis=1,
-        )
-        st.dataframe(
-            styled_scorecard,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
-                "FY26 Target": st.column_config.NumberColumn(format="localized"),
-                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
-                "Target Improvement": st.column_config.NumberColumn(format="localized"),
-                "FY27 Target": st.column_config.NumberColumn(format="localized"),
-            },
-        )
-        st.markdown("#### Participant inputs")
+        st.markdown("### Edit scorecard inputs")
+        st.caption("Use the De-prioritize checkbox here, then save. The full scorecard preview below will turn gray for that row.")
         participant_inputs = scorecard_df[["Perspective", "KPI", "FY26 Target", "Review Frequency", "Owner", "Owner Department", "De-prioritize"]]
         edited_scorecard = st.data_editor(
             participant_inputs,
@@ -688,6 +673,25 @@ elif step == "4 · Balanced Scorecard":
                 )
             st.success("Balanced Scorecard saved.")
             st.rerun()
+        preview_df = scorecard_df.drop(columns=["De-prioritize"]).copy()
+        preview_df["Priority"] = scorecard_df["De-prioritize"].map({True: "De-prioritized", False: "Active"})
+        styled_scorecard = preview_df.style.apply(
+            lambda row: ["background-color: #555555; color: #e0e0e0" if row["Priority"] == "De-prioritized" else "" for _ in row],
+            axis=1,
+        )
+        st.markdown("### Scorecard preview")
+        st.dataframe(
+            styled_scorecard,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
+                "FY26 Target": st.column_config.NumberColumn(format="localized"),
+                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
+                "Target Improvement": st.column_config.NumberColumn(format="localized"),
+                "FY27 Target": st.column_config.NumberColumn(format="localized"),
+            },
+        )
 elif step == "5 · Presentation View":
     st.subheader(f"{department} · Department Presentation")
     st.markdown("### Strategy Map")
