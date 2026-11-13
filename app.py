@@ -427,12 +427,12 @@ elif step == "3 · Strategy Map":
             "Internal Process": "INTERNAL\nPROCESS",
             "Organizational Capacity": "ORGANIZATIONAL\nCAPACITY",
         }
-        map_width = 1280
-        label_width = 180
-        card_width = 250
-        card_height = 132
-        card_gap = 14
-        row_gap = 18
+        map_width = 1040
+        label_width = 140
+        card_width = 180
+        card_height = 156
+        card_gap = 10
+        row_gap = 12
         lane_gap = 10
         lane_tops = {}
         lane_heights = {}
@@ -461,7 +461,7 @@ elif step == "3 · Strategy Map":
                 x = label_width + card_gap + card_width / 2 + card_column * (card_width + card_gap)
                 y = lane_top + lane_height / 2 + (card_row - (row_count - 1) / 2) * (card_height + row_gap)
                 full_text = objective_statement(obj)
-                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=35, break_long_words=True, break_on_hyphens=False))
+                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=26, break_long_words=True, break_on_hyphens=False))
                 is_pending = obj["id"] == pending_source_id
                 node_objective_ids.append(obj["id"])
                 node_data.append({
@@ -492,10 +492,6 @@ elif step == "3 · Strategy Map":
             "series": [{
                 "id": "strategy-objectives",
                 "type": "graph",
-                "left": 0,
-                "top": 0,
-                "right": 0,
-                "bottom": 0,
                 "layout": "none",
                 "roam": False,
                 "data": node_data,
