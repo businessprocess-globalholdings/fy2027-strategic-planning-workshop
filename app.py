@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, JsCode
 
 
 st.set_page_config(page_title="FY2027 Strategy Workshop", page_icon="🧭", layout="wide")
@@ -215,7 +216,7 @@ st.markdown('<div class="hero"><h1>FY2027 Strategic Planning Workshop</h1><p>Dep
 with st.sidebar:
     department = st.selectbox("Department", DEPARTMENTS)
     step = st.radio("Workshop steps", ["1 · SWOT Analysis", "2 · TOWS Evaluation", "3 · Strategy Map", "4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"])
-    st.caption("Balanced Scorecard edits save when you click Save scorecard changes.")
+    st.caption("Balanced Scorecard edits save automatically.")
 
 needs_swot = step in {"1 · SWOT Analysis", "2 · TOWS Evaluation", "6 · Excel Export"}
 swot_rows = query("SELECT * FROM v2_swot WHERE department=? ORDER BY id", (department,)) if needs_swot else []
@@ -611,7 +612,7 @@ elif step == "3 · Strategy Map":
 
 elif step == "4 · Balanced Scorecard":
     st.subheader("FY2027 Balanced Scorecard")
-    st.caption("Perspective, KPI, Unit, FY26 Actual, Target Improvement, FY27 Target, and Deadline come from each strategic objective. Enter the FY26 Target, review frequency, and owner details. Δ is FY26 Actual minus FY26 Target; de-prioritized KPIs remain in the scorecard and appear greyed out.")
+    st.caption("Perspective, KPI, Unit, FY26 Actual, Target Improvement, FY27 Target, and Deadline come from each strategic objective. Enter the FY26 Target, review frequency, and owner details in the table. Δ is FY26 Actual minus FY26 Target; de-prioritizing a KPI greys its row. Changes save automatically.")
     if not objectives:
         st.info("Create objectives in TOWS Evaluation first.")
     else:
@@ -641,57 +642,71 @@ elif step == "4 · Balanced Scorecard":
                 "Owner Department": data.get("owner_department") or department,
                 "De-prioritize": bool(data.get("deprioritized", False)),
             })
-        scorecard_df = pd.DataFrame(table_rows).set_index("_Objective ID")
-        st.markdown("### Edit scorecard inputs")
-        st.caption("Use the De-prioritize checkbox here, then save. The full scorecard preview below will turn gray for that row.")
-        participant_inputs = scorecard_df[["Perspective", "KPI", "FY26 Target", "Review Frequency", "Owner", "Owner Department", "De-prioritize"]]
-        edited_scorecard = st.data_editor(
-            participant_inputs,
-            key=f"scorecard-editor-{department}",
-            hide_index=True,
-            use_container_width=True,
-            num_rows="fixed",
-            disabled=["Perspective", "KPI"],
-            column_config={
-                "Perspective": st.column_config.TextColumn("Perspective", width="small"),
-                "KPI": st.column_config.TextColumn("KPI", width="large"),
-                "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="localized", help="Participant input"),
-                "Review Frequency": st.column_config.SelectboxColumn("Review Frequency", options=["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]),
-                "Owner": st.column_config.TextColumn("Owner", width="medium"),
-                "Owner Department": st.column_config.SelectboxColumn("Owner Department", options=DEPARTMENTS),
-                "De-prioritize": st.column_config.CheckboxColumn("De-prioritize", help="Keep the KPI, but show it as lower priority."),
-            },
+        scorecard_df = pd.DataFrame(table_rows)
+        scorecard_df["_Objective ID"] = scorecard_df["_Objective ID"].astype(int)
+        number_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; return Number(params.value).toLocaleString('en-US', {maximumFractionDigits: 2}); }")
+        delta_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; const value = Number(params.value); return (value > 0 ? '+' : '') + value.toLocaleString('en-US', {maximumFractionDigits: 2}); }")
+        delta_getter = JsCode("function(params) { const actual = params.data['FY26 Actual']; const target = params.data['FY26 Target']; if (actual === null || actual === undefined || target === null || target === undefined || target === '') return null; return Number(actual) - Number(target); }")
+        row_style = JsCode("function(params) { if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#e0e0e0'}; return null; }")
+        gb = GridOptionsBuilder.from_dataframe(scorecard_df)
+        gb.configure_default_column(editable=False, resizable=True, sortable=False, filter=False, wrapText=True, autoHeight=True, suppressMovable=True)
+        gb.configure_column("_Objective ID", hide=True)
+        gb.configure_column("Perspective", width=90, pinned="left")
+        gb.configure_column("KPI", flex=2, minWidth=230)
+        gb.configure_column("Unit", width=95)
+        gb.configure_column("FY26 Actual", width=115, valueFormatter=number_formatter)
+        gb.configure_column("FY26 Target", width=120, editable=True, type=["numericColumn"], cellEditor="agNumberCellEditor", valueFormatter=number_formatter)
+        gb.configure_column("± Δ", width=100, valueGetter=delta_getter, valueFormatter=delta_formatter)
+        gb.configure_column("Target Improvement", width=145, valueFormatter=number_formatter)
+        gb.configure_column("FY27 Target", width=120, valueFormatter=number_formatter)
+        gb.configure_column("Deadline", width=120)
+        gb.configure_column("Review Frequency", width=145, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": ["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]})
+        gb.configure_column("Owner", width=130, editable=True, cellEditor="agTextCellEditor")
+        gb.configure_column("Owner Department", width=155, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": DEPARTMENTS})
+        gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
+        gb.configure_grid_options(getRowStyle=row_style, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
+        grid_options = gb.build()
+        configured_columns = {column["field"]: column for column in grid_options["columnDefs"]}
+        grid_options["columnDefs"] = [
+            configured_columns["Perspective"],
+            configured_columns["KPI"],
+            configured_columns["Unit"],
+            {"headerName": "FY26 YTD", "marryChildren": True, "children": [configured_columns[name] for name in ["FY26 Actual", "FY26 Target", "± Δ"]]},
+            configured_columns["Target Improvement"],
+            {"headerName": "FY27", "marryChildren": True, "children": [configured_columns[name] for name in ["FY27 Target", "Deadline", "Review Frequency", "Owner", "Owner Department"]]},
+            configured_columns["De-prioritize"],
+        ]
+        grid_response = AgGrid(
+            scorecard_df,
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            update_on=["cellValueChanged"],
+            allow_unsafe_jscode=True,
+            theme="streamlit",
+            height=min(600, 46 + 58 * len(scorecard_df)),
+            fit_columns_on_grid_load=False,
+            key=f"scorecard-grid-{department}",
         )
-        if st.button("Save scorecard changes", type="primary", key=f"save-scorecard-{department}"):
-            for objective_id, row in edited_scorecard.iterrows():
-                target_value = row["FY26 Target"]
-                if pd.isna(target_value):
-                    target_value = None
-                write(
-                    "INSERT INTO v2_scorecard(objective_id,fy26_target,deprioritized,frequency,owner,owner_department) VALUES(?,?,?,?,?,?) ON CONFLICT(objective_id) DO UPDATE SET fy26_target=excluded.fy26_target,deprioritized=excluded.deprioritized,frequency=excluded.frequency,owner=excluded.owner,owner_department=excluded.owner_department",
-                    (int(objective_id), target_value, bool(row["De-prioritize"]), row["Review Frequency"], row["Owner"].strip(), row["Owner Department"]),
-                )
-            st.success("Balanced Scorecard saved.")
-            st.rerun()
-        preview_df = scorecard_df.drop(columns=["De-prioritize"]).copy()
-        preview_df["Priority"] = scorecard_df["De-prioritize"].map({True: "De-prioritized", False: "Active"})
-        styled_scorecard = preview_df.style.apply(
-            lambda row: ["background-color: #555555; color: #e0e0e0" if row["Priority"] == "De-prioritized" else "" for _ in row],
-            axis=1,
-        )
-        st.markdown("### Scorecard preview")
-        st.dataframe(
-            styled_scorecard,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
-                "FY26 Target": st.column_config.NumberColumn(format="localized"),
-                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
-                "Target Improvement": st.column_config.NumberColumn(format="localized"),
-                "FY27 Target": st.column_config.NumberColumn(format="localized"),
-            },
-        )
+        edited_scorecard = getattr(grid_response, "data", None)
+        if edited_scorecard is None and isinstance(grid_response, dict):
+            edited_scorecard = grid_response.get("data")
+        if isinstance(edited_scorecard, pd.DataFrame) and "_Objective ID" in edited_scorecard:
+            for row in edited_scorecard.to_dict("records"):
+                objective_id = int(row["_Objective ID"])
+                current = scorecard_by_id.get(objective_id, {})
+                target_raw = row.get("FY26 Target")
+                target_value = None if target_raw is None or pd.isna(target_raw) else float(target_raw)
+                frequency = "" if pd.isna(row.get("Review Frequency")) else str(row.get("Review Frequency") or "")
+                owner = "" if pd.isna(row.get("Owner")) else str(row.get("Owner") or "").strip()
+                owner_department = "" if pd.isna(row.get("Owner Department")) else str(row.get("Owner Department") or "")
+                deprioritized = bool(row.get("De-prioritize", False))
+                old_target = current.get("fy26_target")
+                same_target = (old_target is None and target_value is None) or (old_target is not None and target_value is not None and float(old_target) == target_value)
+                if not same_target or frequency != (current.get("frequency") or "") or owner != (current.get("owner") or "") or owner_department != (current.get("owner_department") or department) or deprioritized != bool(current.get("deprioritized", False)):
+                    write(
+                        "INSERT INTO v2_scorecard(objective_id,fy26_target,deprioritized,frequency,owner,owner_department) VALUES(?,?,?,?,?,?) ON CONFLICT(objective_id) DO UPDATE SET fy26_target=excluded.fy26_target,deprioritized=excluded.deprioritized,frequency=excluded.frequency,owner=excluded.owner,owner_department=excluded.owner_department",
+                        (objective_id, target_value, deprioritized, frequency, owner, owner_department),
+                    )
 elif step == "5 · Presentation View":
     st.subheader(f"{department} · Department Presentation")
     st.markdown("### Strategy Map")
