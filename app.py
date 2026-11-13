@@ -268,6 +268,7 @@ elif step == "2 · TOWS Evaluation":
                                     st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
                                     st.session_state["show_objective_form"] = True
                                     st.session_state["scroll_to_objective_form"] = True
+                                    st.session_state["scroll_request_id"] = st.session_state.get("scroll_request_id", 0) + 1
                                     st.rerun()
                                 with st.popover("⋯", help="Link an existing objective", use_container_width=True):
                                     if objectives:
@@ -285,15 +286,24 @@ elif step == "2 · TOWS Evaluation":
             st.markdown('<div id="new-objective-form"></div>', unsafe_allow_html=True)
             st.markdown(f"### New objective for {a_code} × {b_code}")
             if st.session_state.pop("scroll_to_objective_form", False):
-                components.html("""
+                scroll_request_id = st.session_state.get("scroll_request_id", 0)
+                components.html(f"""
                     <script>
-                    setTimeout(() => {
-                      try {
-                        const target = window.parent.document.getElementById("new-objective-form");
-                        if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
-                      } catch (error) {}
-                    }, 250);
+                    (() => {{
+                      const scrollToForm = () => {{
+                        try {{
+                          const target = window.parent.document.getElementById("new-objective-form");
+                          if (target) target.scrollIntoView({{ behavior: "smooth", block: "start", inline: "nearest" }});
+                        }} catch (error) {{}}
+                      }};
+                      requestAnimationFrame(() => {{
+                        scrollToForm();
+                        setTimeout(scrollToForm, 350);
+                        setTimeout(scrollToForm, 800);
+                      }});
+                    }})();
                     </script>
+                    <!-- scroll request {scroll_request_id} -->
                 """, height=0)
             with st.form("new-tows-objective", clear_on_submit=True):
                 goal = st.text_input("Direction / goal", placeholder="Increase successfully fulfilled bookings")
