@@ -2,6 +2,7 @@ import html
 import io
 import os
 import sqlite3
+import textwrap
 from datetime import date
 from pathlib import Path
 
@@ -379,35 +380,196 @@ elif step == "3 · Strategy Map":
     if not objectives:
         st.info("Finalize strategic objectives in TOWS Evaluation first.")
     else:
-        st.write("Objectives are arranged from Organizational Capacity at the bottom to Financial Value at the top. Connect upward or sideways; downward connections are not available.")
+        st.write("Objectives are arranged from Organizational Capacity at the bottom to Financial Value at the top. Choose an arrow style, then click a starting objective and a target objective to connect them. Connections save as soon as you select the target.")
+        connector_type = st.radio("Connector type", ["Straight arrow", "Broken line arrow"], horizontal=True, key=f"strategy-map-connector-{department}")
+
+        map_source_key = f"strategy-map-source-{department}"
+        map_epoch_key = f"strategy-map-epoch-{department}"
+        map_last_click_key = f"strategy-map-last-click-{department}"
+        map_notice_key = f"strategy-map-notice-{department}"
+        st.session_state.setdefault(map_epoch_key, 0)
+
+        rank = {p: i for i, p in enumerate(PERSPECTIVES)}
         by_p = {p: [o for o in objectives if o["perspective"] == p] for p in PERSPECTIVES}
-        for perspective in reversed(PERSPECTIVES):
-            with st.container(border=True):
-                st.markdown(f"**{perspective}**")
-                if not by_p[perspective]: st.caption("No objectives in this perspective")
-                else:
-                    for number, obj in enumerate(by_p[perspective], 1): st.write(f"{number}. {objective_statement(obj)}")
-        st.markdown("#### Add a connection")
-        line_type = st.radio("Connector", ["Straight arrow", "Broken line arrow"], horizontal=True)
-        available_sources = objectives
-        source_id = st.selectbox("From objective", [o["id"] for o in available_sources], format_func=lambda x: f"{obj_by_id[x]['perspective']} · {obj_by_id[x]['goal']}")
-        source = obj_by_id[source_id]
-        rank = {p:i for i,p in enumerate(PERSPECTIVES)}
-        targets = [o for o in objectives if o["id"] != source_id and rank[o["perspective"]] >= rank[source["perspective"]]]
-        if targets:
-            target_id = st.selectbox("To objective", [o["id"] for o in targets], format_func=lambda x: f"{obj_by_id[x]['perspective']} · {obj_by_id[x]['goal']}")
-            if st.button("Add arrow", type="primary"):
-                write("INSERT INTO v2_arrows(department,source_id,target_id,line_type) VALUES(?,?,?,?) ON CONFLICT DO NOTHING", (department,source_id,target_id,line_type)); st.rerun()
-        else: st.caption("This objective has no valid upward or sideways targets.")
+        lane_order = list(reversed(PERSPECTIVES))
         arrows = query("SELECT * FROM v2_arrows WHERE department=? ORDER BY id", (department,))
-        st.markdown("#### Connections")
-        if not arrows: st.caption("No arrows yet")
+        number_by_id = {o["id"]: n for n, o in enumerate(objectives, 1)}
+        existing_pairs = {(a["source_id"], a["target_id"]) for a in arrows}
+
+        pending_source_id = st.session_state.get(map_source_key)
+        if pending_source_id in obj_by_id:
+            pending_source = obj_by_id[pending_source_id]
+            st.info(f"Starting objective selected: {pending_source['goal']}. Click a valid target card to save the {connector_type.lower()}.")
+            if st.button("Cancel selection", key=f"cancel-strategy-map-source-{department}"):
+                st.session_state.pop(map_source_key, None)
+                st.session_state[map_epoch_key] += 1
+                st.session_state[map_last_click_key] = ()
+                st.rerun()
+        else:
+            st.caption("Choose a connector style above, then click the source card and the target card. Connections can go upward or across the same perspective.")
+
+        notice = st.session_state.pop(map_notice_key, None)
+        if notice:
+            if notice.startswith("Saved:"):
+                st.success(notice)
+            else:
+                st.warning(notice)
+
+        perspective_colors = {
+            "Financial Value": "#eee8f6",
+            "Customer and Stakeholder Value": "#e6f0fa",
+            "Internal Process": "#e6f1e8",
+            "Organizational Capacity": "#fff1c9",
+        }
+        lane_labels = {
+            "Financial Value": "FINANCIAL\nVALUE",
+            "Customer and Stakeholder Value": "CUSTOMER &\nSTAKEHOLDER\nVALUE",
+            "Internal Process": "INTERNAL\nPROCESS",
+            "Organizational Capacity": "ORGANIZATIONAL\nCAPACITY",
+        }
+        map_width = 1280
+        label_width = 230
+        card_width = 240
+        card_height = 132
+        card_gap = 18
+        row_gap = 18
+        lane_gap = 10
+        lane_tops = {}
+        lane_heights = {}
+        current_top = 18
+        for perspective in lane_order:
+            row_count = max(1, (len(by_p[perspective]) + 3) // 4)
+            lane_height = 24 + row_count * card_height + (row_count - 1) * row_gap + 18
+            lane_tops[perspective] = current_top
+            lane_heights[perspective] = lane_height
+            current_top += lane_height + lane_gap
+        map_height = current_top + 4
+
+        graphics = []
+        node_data = []
+        node_objective_ids = []
+        for perspective in lane_order:
+            lane_top = lane_tops[perspective]
+            lane_height = lane_heights[perspective]
+            graphics.append({"type": "rect", "left": 0, "top": lane_top, "shape": {"width": map_width, "height": lane_height}, "style": {"fill": perspective_colors[perspective], "stroke": "#c9cdd2", "lineWidth": 1}, "silent": True, "z": 0})
+            graphics.append({"type": "text", "left": 18, "top": lane_top + lane_height / 2, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "center", "verticalAlign": "middle", "lineHeight": 18}, "silent": True, "z": 1})
+            for local_index, obj in enumerate(by_p[perspective]):
+                objective_number = number_by_id[obj["id"]]
+                card_row = local_index // 4
+                card_column = local_index % 4
+                x = label_width + card_gap + card_width / 2 + card_column * (card_width + card_gap)
+                y = lane_top + 24 + card_row * (card_height + row_gap) + card_height / 2
+                full_text = objective_statement(obj)
+                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=30, break_long_words=True, break_on_hyphens=False))
+                is_pending = obj["id"] == pending_source_id
+                node_objective_ids.append(obj["id"])
+                node_data.append({
+                    "id": str(obj["id"]),
+                    "name": visual_text,
+                    "value": full_text,
+                    "x": x,
+                    "y": y,
+                    "symbol": "roundRect",
+                    "symbolSize": [card_width, card_height],
+                    "itemStyle": {"color": perspective_colors[perspective], "borderColor": "#d69b18" if is_pending else "#c4c8ce", "borderWidth": 4 if is_pending else 1, "shadowBlur": 8 if is_pending else 0, "shadowColor": "rgba(214,155,24,.28)"},
+                    "label": {"show": True, "position": "inside", "width": card_width - 24, "overflow": "break", "fontSize": 12, "lineHeight": 16, "color": "#263238", "align": "left", "verticalAlign": "middle"},
+                    "tooltip": {"formatter": "{b}<br/>{c}"},
+                })
+
+        link_data = []
         for arrow in arrows:
-            src, tgt = obj_by_id.get(arrow["source_id"]), obj_by_id.get(arrow["target_id"])
-            if src and tgt:
-                cols=st.columns([8,1]); cols[0].write(f"{src['perspective']} · {src['goal']}  {'⇢' if arrow['line_type']=='Straight arrow' else '╌➤'}  {tgt['perspective']} · {tgt['goal']}")
-                if cols[1].button("Remove", key=f"remove-arrow-{arrow['id']}"):
-                    write("DELETE FROM v2_arrows WHERE id=?", (arrow["id"],)); st.rerun()
+            if arrow["source_id"] in obj_by_id and arrow["target_id"] in obj_by_id:
+                link_data.append({
+                    "source": str(arrow["source_id"]),
+                    "target": str(arrow["target_id"]),
+                    "lineStyle": {"color": "#69737e", "width": 2, "type": "solid" if arrow["line_type"] == "Straight arrow" else "dashed", "curveness": 0.12},
+                })
+
+        map_spec = {
+            "animation": False,
+            "tooltip": {"trigger": "item"},
+            "graphic": graphics,
+            "series": [{
+                "id": "strategy-objectives",
+                "type": "graph",
+                "layout": "none",
+                "roam": True,
+                "data": node_data,
+                "links": link_data,
+                "edgeSymbol": ["none", "arrow"],
+                "edgeSymbolSize": [0, 10],
+                "lineStyle": {"color": "#69737e", "width": 2},
+                "selectedMode": "single",
+                "select": {"itemStyle": {"borderColor": "#d69b18", "borderWidth": 4, "shadowBlur": 8, "shadowColor": "rgba(214,155,24,.28)"}},
+                "emphasis": {"focus": "adjacency"},
+                "z": 2,
+            }],
+        }
+        map_event = st.echarts_chart(
+            map_spec,
+            width=map_width,
+            height=map_height,
+            theme=None,
+            key=f"strategy-map-{department}-{st.session_state[map_epoch_key]}",
+            on_select="rerun",
+            alt=f"Interactive strategy map for {department}. Select two objective cards to connect them.",
+        )
+
+        selected_node_indices = []
+        for group in map_event.selection.selected:
+            if group.get("series_index") == 0 and group.get("data_type") == "node":
+                selected_node_indices.extend(group.get("data_indices", []))
+        selection_signature = tuple(sorted(set(selected_node_indices)))
+        last_signature = st.session_state.get(map_last_click_key, ())
+        if selection_signature and selection_signature != last_signature:
+            st.session_state[map_last_click_key] = selection_signature
+            clicked_index = selection_signature[0]
+            if clicked_index < len(node_objective_ids):
+                clicked_id = node_objective_ids[clicked_index]
+                pending_source_id = st.session_state.get(map_source_key)
+                if pending_source_id not in obj_by_id:
+                    st.session_state[map_source_key] = clicked_id
+                    st.rerun()
+                elif clicked_id == pending_source_id:
+                    st.session_state.pop(map_source_key, None)
+                    st.session_state[map_epoch_key] += 1
+                    st.session_state[map_last_click_key] = ()
+                    st.rerun()
+                else:
+                    source = obj_by_id[pending_source_id]
+                    target = obj_by_id[clicked_id]
+                    if rank[target["perspective"]] < rank[source["perspective"]]:
+                        st.session_state[map_notice_key] = "That target is below the selected source. Choose an objective in the same or a higher perspective."
+                        st.session_state[map_epoch_key] += 1
+                        st.rerun()
+                    elif (pending_source_id, clicked_id) in existing_pairs:
+                        st.session_state[map_notice_key] = "That connection already exists. Choose another target, or remove the existing connection below."
+                        st.session_state[map_epoch_key] += 1
+                        st.rerun()
+                    else:
+                        write("INSERT INTO v2_arrows(department,source_id,target_id,line_type) VALUES(?,?,?,?) ON CONFLICT DO NOTHING", (department, pending_source_id, clicked_id, connector_type))
+                        st.session_state.pop(map_source_key, None)
+                        st.session_state[map_epoch_key] += 1
+                        st.session_state[map_last_click_key] = ()
+                        st.session_state[map_notice_key] = f"Saved: {source['goal']} → {target['goal']} ({connector_type.lower()})."
+                        st.rerun()
+
+        st.markdown("#### Connections")
+        if not arrows:
+            st.caption("No connections yet.")
+        for arrow in arrows:
+            source = obj_by_id.get(arrow["source_id"])
+            target = obj_by_id.get(arrow["target_id"])
+            if source and target:
+                connection_cols = st.columns([8, 1])
+                connector_symbol = "────────➤" if arrow["line_type"] == "Straight arrow" else "╌╌╌╌╌➤"
+                connection_cols[0].write(f"{number_by_id[source['id']]}. {source['goal']}  {connector_symbol}  {number_by_id[target['id']]}. {target['goal']}  ·  {arrow['line_type']}")
+                if connection_cols[1].button("Remove", key=f"remove-arrow-{arrow['id']}"):
+                    write("DELETE FROM v2_arrows WHERE id=?", (arrow["id"],))
+                    st.session_state.pop(map_source_key, None)
+                    st.session_state[map_epoch_key] += 1
+                    st.session_state[map_last_click_key] = ()
+                    st.rerun()
 
 elif step == "4 · Balanced Scorecard":
     st.subheader("FY2027 Balanced Scorecard")
