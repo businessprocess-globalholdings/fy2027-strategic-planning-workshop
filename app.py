@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 st.set_page_config(page_title="FY2027 Strategy Workshop", page_icon="🧭", layout="wide")
@@ -266,6 +267,7 @@ elif step == "2 · TOWS Evaluation":
                                 if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
                                     st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
                                     st.session_state["show_objective_form"] = True
+                                    st.session_state["scroll_to_objective_form"] = True
                                     st.rerun()
                                 with st.popover("⋯", help="Link an existing objective", use_container_width=True):
                                     if objectives:
@@ -280,7 +282,19 @@ elif step == "2 · TOWS Evaluation":
         if st.session_state.get("show_objective_form") and active:
             a_id,b_id,a_code,b_code = active
             st.divider()
+            st.markdown('<div id="new-objective-form"></div>', unsafe_allow_html=True)
             st.markdown(f"### New objective for {a_code} × {b_code}")
+            if st.session_state.pop("scroll_to_objective_form", False):
+                components.html("""
+                    <script>
+                    setTimeout(() => {
+                      try {
+                        const target = window.parent.document.getElementById("new-objective-form");
+                        if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+                      } catch (error) {}
+                    }, 250);
+                    </script>
+                """, height=0)
             with st.form("new-tows-objective", clear_on_submit=True):
                 goal = st.text_input("Direction / goal", placeholder="Increase successfully fulfilled bookings")
                 c1,c2,c3 = st.columns(3)
