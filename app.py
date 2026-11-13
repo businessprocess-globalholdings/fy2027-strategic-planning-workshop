@@ -622,7 +622,12 @@ elif step == "4 · Balanced Scorecard":
             fy26_target = data.get("fy26_target")
             table_rows.append({
                 "_Objective ID": obj["id"],
-                "Perspective": obj["perspective"],
+                "Perspective": {
+                    "Customer and Stakeholder Value": "CSV",
+                    "Financial Value": "FV",
+                    "Organizational Capacity": "OC",
+                    "Internal Process": "IP",
+                }.get(obj["perspective"], obj["perspective"]),
                 "KPI": scorecard_kpi(obj),
                 "Unit": obj["unit"],
                 "FY26 Actual": baseline,
