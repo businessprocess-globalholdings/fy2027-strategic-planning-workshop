@@ -178,7 +178,7 @@ def objective_statement(obj):
 
 
 init_db()
-st.markdown("<style>.block-container{padding-top:1.5rem}.hero{padding:1.2rem 1.6rem;border-radius:14px;background:linear-gradient(110deg,#173446,#246064);color:#fff;margin-bottom:1rem}.hero h1{margin:0;font-size:1.8rem}.hero p{margin:.25rem 0 0;color:#d9e9e6}.code{font-weight:700;color:#167d76}</style>", unsafe_allow_html=True)
+st.markdown("<style>.block-container{padding-top:1.5rem}.hero{padding:1.2rem 1.6rem;border-radius:14px;background:linear-gradient(110deg,#173446,#246064);color:#fff;margin-bottom:1rem}.hero h1{margin:0;font-size:1.8rem}.hero p{margin:.25rem 0 0;color:#d9e9e6}.code{font-weight:700;color:#167d76}[data-testid="stPopoverButton"]{min-width:1.75rem!important;width:100%!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}[data-testid="stPopoverButton"]:hover{background:rgba(128,128,128,.12)!important;border-radius:6px}[data-testid="stPopoverButton"]>div{justify-content:center!important}[data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"]{display:none!important}</style>", unsafe_allow_html=True)
 st.markdown('<div class="hero"><h1>FY2027 Strategic Planning Workshop</h1><p>Department workspace · SWOT → TOWS → Strategy Map → Balanced Scorecard</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
@@ -234,7 +234,7 @@ elif step == "2 · TOWS Evaluation":
     if any(not swot[q] for q in QUADRANTS):
         st.info("Add at least one Strength, Weakness, Opportunity, and Threat to populate all TOWS intersections.")
     st.markdown("#### TOWS Matrix")
-    st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open ⋯ to link existing objectives.")
+    st.caption("Hover over a SWOT code to read its factor. Select a cell to add an objective, or open the chevron to link existing objectives.")
     matrix_area, objective_panel = st.columns([1.6, 1.2], gap="medium")
     with matrix_area:
         matrix_left, matrix_right = st.columns([1, 1], gap="small")
@@ -264,21 +264,24 @@ elif step == "2 · TOWS Evaluation":
                             global_numbers = {o["id"]: n for n, o in enumerate(objectives, 1)}
                             label = " · ".join(str(global_numbers[x]) for x in links if x in global_numbers) if links else "＋"
                             with col:
-                                if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
-                                    st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
-                                    st.session_state["show_objective_form"] = True
-                                    st.session_state["scroll_to_objective_form"] = True
-                                    st.session_state["scroll_request_id"] = st.session_state.get("scroll_request_id", 0) + 1
-                                    st.rerun()
-                                with st.popover("⋯", help="Link an existing objective", use_container_width=True):
-                                    if objectives:
-                                        existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
-                                        if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
-                                            for oid in existing:
-                                                write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
-                                            st.rerun()
-                                    else:
-                                        st.caption("Create an objective first.")
+                                intersection_button, menu_button = st.columns([3.8, 1.2], gap="small")
+                                with intersection_button:
+                                    if st.button(label, key=f"cell-{a['id']}-{b['id']}", help=f"{a['code']}: {a['factor']}\n{b['code']}: {b['factor']}\nSelect to add an objective.", use_container_width=True):
+                                        st.session_state["active_intersection"] = (a["id"], b["id"], a["code"], b["code"])
+                                        st.session_state["show_objective_form"] = True
+                                        st.session_state["scroll_to_objective_form"] = True
+                                        st.session_state["scroll_request_id"] = st.session_state.get("scroll_request_id", 0) + 1
+                                        st.rerun()
+                                with menu_button:
+                                    with st.popover(" ", help="Link existing objectives to this intersection", use_container_width=True):
+                                        if objectives:
+                                            existing = st.multiselect("Select objective(s)", [o["id"] for o in objectives], format_func=lambda x: f"{next(i for i, o in enumerate(objectives, 1) if o['id'] == x)} · {obj_by_id[x]['goal']}", key=f"intersection-obj-{a['id']}-{b['id']}")
+                                            if st.button("Add selected", key=f"link-existing-{a['id']}-{b['id']}"):
+                                                for oid in existing:
+                                                    write("INSERT INTO v2_tows_links(objective_id,swot_a,swot_b) VALUES(?,?,?) ON CONFLICT DO NOTHING", (oid, a["id"], b["id"]))
+                                                st.rerun()
+                                        else:
+                                            st.caption("Create an objective first.")
         active = st.session_state.get("active_intersection")
         if st.session_state.get("show_objective_form") and active:
             a_id,b_id,a_code,b_code = active
