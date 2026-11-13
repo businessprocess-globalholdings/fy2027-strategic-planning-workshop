@@ -428,10 +428,10 @@ elif step == "3 · Strategy Map":
             "Organizational Capacity": "ORGANIZATIONAL\nCAPACITY",
         }
         map_width = 1280
-        label_width = 230
-        card_width = 240
+        label_width = 180
+        card_width = 250
         card_height = 132
-        card_gap = 18
+        card_gap = 14
         row_gap = 18
         lane_gap = 10
         lane_tops = {}
@@ -452,7 +452,7 @@ elif step == "3 · Strategy Map":
             lane_top = lane_tops[perspective]
             lane_height = lane_heights[perspective]
             graphics.append({"type": "rect", "left": 0, "top": lane_top, "shape": {"width": map_width, "height": lane_height}, "style": {"fill": perspective_colors[perspective], "stroke": "#c9cdd2", "lineWidth": 1}, "silent": True, "z": 0})
-            graphics.append({"type": "text", "left": 18, "top": lane_top + lane_height / 2, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "center", "verticalAlign": "middle", "lineHeight": 18}, "silent": True, "z": 1})
+            graphics.append({"type": "text", "left": label_width / 2, "top": lane_top + lane_height / 2, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "center", "verticalAlign": "middle", "lineHeight": 18}, "silent": True, "z": 1})
             for local_index, obj in enumerate(by_p[perspective]):
                 objective_number = number_by_id[obj["id"]]
                 card_row = local_index // 4
@@ -460,7 +460,7 @@ elif step == "3 · Strategy Map":
                 x = label_width + card_gap + card_width / 2 + card_column * (card_width + card_gap)
                 y = lane_top + 24 + card_row * (card_height + row_gap) + card_height / 2
                 full_text = objective_statement(obj)
-                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=30, break_long_words=True, break_on_hyphens=False))
+                visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=35, break_long_words=True, break_on_hyphens=False))
                 is_pending = obj["id"] == pending_source_id
                 node_objective_ids.append(obj["id"])
                 node_data.append({
@@ -472,8 +472,7 @@ elif step == "3 · Strategy Map":
                     "symbol": "roundRect",
                     "symbolSize": [card_width, card_height],
                     "itemStyle": {"color": perspective_colors[perspective], "borderColor": "#d69b18" if is_pending else "#c4c8ce", "borderWidth": 4 if is_pending else 1, "shadowBlur": 8 if is_pending else 0, "shadowColor": "rgba(214,155,24,.28)"},
-                    "label": {"show": True, "position": "inside", "width": card_width - 24, "overflow": "break", "fontSize": 12, "lineHeight": 16, "color": "#263238", "align": "left", "verticalAlign": "middle"},
-                    "tooltip": {"formatter": "{b}<br/>{c}"},
+                    "label": {"show": True, "position": "insideLeft", "distance": 12, "width": card_width - 30, "overflow": "break", "fontSize": 12, "lineHeight": 16, "color": "#18252c", "align": "left", "verticalAlign": "middle"},
                 })
 
         link_data = []
@@ -487,7 +486,7 @@ elif step == "3 · Strategy Map":
 
         map_spec = {
             "animation": False,
-            "tooltip": {"trigger": "item"},
+            "tooltip": {"show": False},
             "graphic": graphics,
             "series": [{
                 "id": "strategy-objectives",
@@ -501,7 +500,6 @@ elif step == "3 · Strategy Map":
                 "lineStyle": {"color": "#69737e", "width": 2},
                 "selectedMode": "single",
                 "select": {"itemStyle": {"borderColor": "#d69b18", "borderWidth": 4, "shadowBlur": 8, "shadowColor": "rgba(214,155,24,.28)"}},
-                "emphasis": {"focus": "adjacency"},
                 "z": 2,
             }],
         }
