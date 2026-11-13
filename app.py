@@ -611,7 +611,7 @@ elif step == "3 · Strategy Map":
 
 elif step == "4 · Balanced Scorecard":
     st.subheader("FY2027 Balanced Scorecard")
-    st.caption("Perspective, KPI, FY26 Actual, Target Improvement, FY27 Target, and Deadline come from each strategic objective. Enter the FY26 Target, review frequency, and owner details. Δ is FY26 Actual minus FY26 Target; de-prioritized KPIs remain in the scorecard and appear greyed out.")
+    st.caption("Perspective, KPI, Unit, FY26 Actual, Target Improvement, FY27 Target, and Deadline come from each strategic objective. Enter the FY26 Target, review frequency, and owner details. Δ is FY26 Actual minus FY26 Target; de-prioritized KPIs remain in the scorecard and appear greyed out.")
     if not objectives:
         st.info("Create objectives in TOWS Evaluation first.")
     else:
@@ -624,6 +624,7 @@ elif step == "4 · Balanced Scorecard":
                 "_Objective ID": obj["id"],
                 "Perspective": obj["perspective"],
                 "KPI": scorecard_kpi(obj),
+                "Unit": obj["unit"],
                 "FY26 Actual": baseline,
                 "FY26 Target": fy26_target,
                 "± Δ": baseline - fy26_target if baseline is not None and fy26_target is not None else None,
@@ -646,10 +647,11 @@ elif step == "4 · Balanced Scorecard":
             hide_index=True,
             use_container_width=True,
             num_rows="fixed",
-            disabled=["Perspective", "KPI", "FY26 Actual", "± Δ", "Target Improvement", "FY27 Target", "Deadline"],
+            disabled=["Perspective", "KPI", "Unit", "FY26 Actual", "± Δ", "Target Improvement", "FY27 Target", "Deadline"],
             column_config={
                 "Perspective": st.column_config.TextColumn("Perspective", width="small"),
                 "KPI": st.column_config.TextColumn("KPI", width="large"),
+                "Unit": st.column_config.TextColumn("Unit", width="small"),
                 "FY26 Actual": st.column_config.NumberColumn("FY26 Actual", format="localized"),
                 "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="localized", help="Participant input"),
                 "± Δ": st.column_config.NumberColumn("± Δ", format="%,+.2f", help="FY26 Actual − FY26 Target"),
@@ -690,7 +692,7 @@ elif step == "5 · Presentation View":
     table=[]
     for o in main_rows:
         target_value = o["fy26_target"]
-        table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
+        table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
     if table:
         st.dataframe(
             pd.DataFrame(table),
@@ -735,7 +737,7 @@ elif step == "6 · Excel Export":
                     found=next((x["code"] for x in items if x["id"]==pair[key]),"")
                     codes.append(found)
             objective_rows.append({"Objective #":i,"SWOT Intersections":", ".join(codes),"Objective":objective_statement(o),"Perspective":o["perspective"]})
-        scorecard_rows=query('SELECT o.id AS "_Objective ID",o.perspective AS "Perspective",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.unit AS "Unit",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id', (department,))
+        scorecard_rows=query('SELECT o.id AS "_Objective ID",o.perspective AS "Perspective",o.unit AS "Unit",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id', (department,))
         for row in scorecard_rows:
             row["KPI"] = scorecard_kpi(obj_by_id[row["_Objective ID"]])
             del row["_Objective ID"]
