@@ -5,7 +5,7 @@ A Streamlit workshop workspace organized around the participant flow in the 2027
 1. Identify a department and enter SWOT factors, which receive sequential S/W/O/T codes.
 2. Use the TOWS intersections to create strategic objectives and assign perspectives.
 3. Arrange objectives by perspective and add upward or sideways map connections.
-4. Complete FY2027 scorecard rows, including actuals, review frequency, and owner.
+4. Complete the FY2027 scorecard with participant-entered FY2026 targets, review frequency, owner, and de-prioritization status; actuals and FY2027 targets come from the strategic objectives.
 5. Present the scorecard with cross-department support needed and incoming KPI dependencies.
 6. Export a Day 2 Excel workbook with blank initiative, budget, and schedule worksheets.
 

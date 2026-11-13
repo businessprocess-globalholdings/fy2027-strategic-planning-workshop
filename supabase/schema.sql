@@ -39,10 +39,15 @@ create table if not exists v2_arrows (
 create table if not exists v2_scorecard (
   objective_id bigint primary key references v2_objectives(id) on delete cascade,
   actual double precision,
+  fy26_target double precision,
+  deprioritized boolean not null default false,
   frequency text not null default '',
   owner text not null default '',
   owner_department text not null default ''
 );
+
+alter table v2_scorecard add column if not exists fy26_target double precision;
+alter table v2_scorecard add column if not exists deprioritized boolean not null default false;
 
 create index if not exists v2_swot_department_quadrant_idx on v2_swot(department, quadrant);
 create index if not exists v2_objectives_department_idx on v2_objectives(department);

@@ -97,11 +97,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS v2_scorecard (
               objective_id bigint PRIMARY KEY REFERENCES v2_objectives(id) ON DELETE CASCADE,
               actual double precision,
+              fy26_target double precision,
+              deprioritized boolean NOT NULL DEFAULT false,
               frequency text NOT NULL DEFAULT '',
               owner text NOT NULL DEFAULT '',
               owner_department text NOT NULL DEFAULT ''
             )
             """)
+            con.execute("ALTER TABLE v2_scorecard ADD COLUMN IF NOT EXISTS fy26_target double precision")
+            con.execute("ALTER TABLE v2_scorecard ADD COLUMN IF NOT EXISTS deprioritized boolean NOT NULL DEFAULT false")
         return True
     with db() as con:
         con.executescript("""
@@ -126,9 +130,15 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS v2_scorecard (
           objective_id INTEGER PRIMARY KEY REFERENCES v2_objectives(id) ON DELETE CASCADE,
-          actual REAL, frequency TEXT NOT NULL DEFAULT '', owner TEXT NOT NULL DEFAULT '', owner_department TEXT NOT NULL DEFAULT ''
+          actual REAL, fy26_target REAL, deprioritized INTEGER NOT NULL DEFAULT 0,
+          frequency TEXT NOT NULL DEFAULT '', owner TEXT NOT NULL DEFAULT '', owner_department TEXT NOT NULL DEFAULT ''
         );
         """)
+        scorecard_columns = {row[1] for row in con.execute("PRAGMA table_info(v2_scorecard)")}
+        if "fy26_target" not in scorecard_columns:
+            con.execute("ALTER TABLE v2_scorecard ADD COLUMN fy26_target REAL")
+        if "deprioritized" not in scorecard_columns:
+            con.execute("ALTER TABLE v2_scorecard ADD COLUMN deprioritized INTEGER NOT NULL DEFAULT 0")
     return True
 
 
@@ -185,7 +195,7 @@ st.markdown('<div class="hero"><h1>FY2027 Strategic Planning Workshop</h1><p>Dep
 with st.sidebar:
     department = st.selectbox("Department", DEPARTMENTS)
     step = st.radio("Workshop steps", ["1 · SWOT Analysis", "2 · TOWS Evaluation", "3 · Strategy Map", "4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"])
-    st.caption("Your selections and entries save automatically.")
+    st.caption("Balanced Scorecard edits save when you click Save scorecard changes.")
 
 needs_swot = step in {"1 · SWOT Analysis", "2 · TOWS Evaluation", "6 · Excel Export"}
 swot_rows = query("SELECT * FROM v2_swot WHERE department=? ORDER BY id", (department,)) if needs_swot else []
@@ -199,7 +209,7 @@ needs_objectives = step != "1 · SWOT Analysis"
 objectives = query("SELECT * FROM v2_objectives WHERE department=? ORDER BY id", (department,)) if needs_objectives else []
 obj_by_id = {o["id"]: o for o in objectives}
 needs_scorecard_rows = step in {"4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"}
-own_rows = query("SELECT o.*,s.actual,s.frequency,s.owner,s.owner_department FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id", (department,)) if needs_scorecard_rows else []
+own_rows = query("SELECT o.*,s.actual,s.fy26_target,s.deprioritized,s.frequency,s.owner,s.owner_department FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id", (department,)) if needs_scorecard_rows else []
 scorecard_by_id = {o["id"]: o for o in own_rows}
 tows_links_by_cell = {}
 if step == "2 · TOWS Evaluation":
@@ -581,34 +591,68 @@ elif step == "3 · Strategy Map":
 
 elif step == "4 · Balanced Scorecard":
     st.subheader("FY2027 Balanced Scorecard")
-    if not objectives: st.info("Create objectives in TOWS Evaluation first.")
-    for obj in objectives:
-        data = scorecard_by_id.get(obj["id"], {"actual": None, "frequency":"", "owner":"", "owner_department":department})
-        with st.container(border=True):
-            st.markdown(f"**{obj['perspective']}** · {objective_statement(obj)}")
-            st.caption("KPI / measure: strategic objective")
+    st.caption("Perspective, KPI, FY26 Actual, Target Improvement, FY27 Target, and Deadline come from each strategic objective. Enter the FY26 Target, review frequency, and owner details. Δ is FY26 Actual minus FY26 Target; de-prioritized KPIs remain in the scorecard and appear greyed out.")
+    if not objectives:
+        st.info("Create objectives in TOWS Evaluation first.")
+    else:
+        table_rows = []
+        for obj in objectives:
+            data = scorecard_by_id.get(obj["id"], {})
             baseline = obj["baseline"]
-            cols=st.columns(5)
-            cols[0].metric("FY2026 actual", fmt_num(baseline) if baseline is not None else "New KPI")
-            delta = obj["improvement"]
-            cols[1].metric("Target improvement", ("+" if delta is not None and delta > 0 else "") + fmt_num(delta) + (f" {obj['unit']}" if obj['unit'] else "") if delta is not None else "—")
-            cols[2].metric("FY2027 target", (fmt_num(obj["target"]) + (f" {obj['unit']}" if obj["unit"] else "")) if obj["target"] is not None else "—")
-            cols[3].metric("Deadline", as_date(obj["deadline"]).strftime("%b %d, %Y"))
-            cols[4].metric("FY2026 baseline", (fmt_num(baseline) + (f" {obj['unit']}" if obj['unit'] else "")) if baseline is not None else "None")
-            with st.form(f"scorecard-{obj['id']}"):
-                c1,c2,c3 = st.columns(3)
-                default_actual = data["actual"] if data["actual"] is not None else obj["baseline"]
-                actual_raw = c1.text_input("FY2026 actual (blank for new KPI)", "" if default_actual is None else str(default_actual))
-                frequency = c2.selectbox("Review frequency", ["", "Monthly", "Quarterly", "Semiannual", "Annual"], index=["", "Monthly", "Quarterly", "Semiannual", "Annual"].index(data["frequency"]) if data["frequency"] in ["", "Monthly", "Quarterly", "Semiannual", "Annual"] else 0)
-                owner = c3.text_input("Owner", data["owner"])
-                owner_department = st.selectbox("Owner department", DEPARTMENTS, index=DEPARTMENTS.index(data["owner_department"]) if data["owner_department"] in DEPARTMENTS else DEPARTMENTS.index(department), key=f"owner-dept-{obj['id']}")
-                save = st.form_submit_button("Save scorecard row", type="primary")
-                if save:
-                    try: actual = float(actual_raw.replace(",", "")) if actual_raw.strip() else None
-                    except ValueError: st.error("FY2026 actual must be numeric or blank."); actual = "invalid"
-                    if actual != "invalid":
-                        write("INSERT INTO v2_scorecard(objective_id,actual,frequency,owner,owner_department) VALUES(?,?,?,?,?) ON CONFLICT(objective_id) DO UPDATE SET actual=excluded.actual,frequency=excluded.frequency,owner=excluded.owner,owner_department=excluded.owner_department", (obj["id"],actual,frequency,owner.strip(),owner_department)); st.rerun()
-
+            fy26_target = data.get("fy26_target")
+            table_rows.append({
+                "_Objective ID": obj["id"],
+                "Perspective": obj["perspective"],
+                "KPI": obj["goal"],
+                "FY26 Actual": baseline,
+                "FY26 Target": fy26_target,
+                "± Δ": baseline - fy26_target if baseline is not None and fy26_target is not None else None,
+                "Target Improvement": obj["improvement"],
+                "FY27 Target": obj["target"],
+                "Deadline": as_date(obj["deadline"]).strftime("%b %d, %Y"),
+                "Review Frequency": data.get("frequency") or "",
+                "Owner": data.get("owner") or "",
+                "Owner Department": data.get("owner_department") or department,
+                "De-prioritize": bool(data.get("deprioritized", False)),
+            })
+        scorecard_df = pd.DataFrame(table_rows).set_index("_Objective ID")
+        styled_scorecard = scorecard_df.style.apply(
+            lambda row: ["background-color: #3b3b3b; color: #a7a7a7" if row["De-prioritize"] else "" for _ in row],
+            axis=1,
+        )
+        edited_scorecard = st.data_editor(
+            styled_scorecard,
+            key=f"scorecard-editor-{department}",
+            hide_index=True,
+            use_container_width=True,
+            num_rows="fixed",
+            disabled=["Perspective", "KPI", "FY26 Actual", "± Δ", "Target Improvement", "FY27 Target", "Deadline"],
+            column_config={
+                "Perspective": st.column_config.TextColumn("Perspective", width="small"),
+                "KPI": st.column_config.TextColumn("KPI", width="large"),
+                "FY26 Actual": st.column_config.NumberColumn("FY26 Actual", format="%.2f"),
+                "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="%.2f", help="Participant input"),
+                "± Δ": st.column_config.NumberColumn("± Δ", format="%+.2f", help="FY26 Actual − FY26 Target"),
+                "Target Improvement": st.column_config.NumberColumn("Target Improvement", format="%.2f"),
+                "FY27 Target": st.column_config.NumberColumn("FY27 Target", format="%.2f"),
+                "Deadline": st.column_config.TextColumn("Deadline", width="small"),
+                "Review Frequency": st.column_config.SelectboxColumn("Review Frequency", options=["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]),
+                "Owner": st.column_config.TextColumn("Owner", width="medium"),
+                "Owner Department": st.column_config.SelectboxColumn("Owner Department", options=DEPARTMENTS),
+                "De-prioritize": st.column_config.CheckboxColumn("De-prioritize", help="Keep the KPI, but show it as lower priority."),
+            },
+        )
+        if st.button("Save scorecard changes", type="primary", key=f"save-scorecard-{department}"):
+            for objective_id, row in edited_scorecard.iterrows():
+                target_value = row["FY26 Target"]
+                if pd.isna(target_value):
+                    target_value = None
+                write(
+                    "INSERT INTO v2_scorecard(objective_id,fy26_target,deprioritized,frequency,owner,owner_department) VALUES(?,?,?,?,?,?) ON CONFLICT(objective_id) DO UPDATE SET fy26_target=excluded.fy26_target,deprioritized=excluded.deprioritized,frequency=excluded.frequency,owner=excluded.owner,owner_department=excluded.owner_department",
+                    (int(objective_id), target_value, bool(row["De-prioritize"]), row["Review Frequency"], row["Owner"].strip(), row["Owner Department"]),
+                )
+            st.success("Balanced Scorecard saved.")
+            st.rerun()
 elif step == "5 · Presentation View":
     st.subheader(f"{department} · Department Presentation")
     st.markdown("### Strategy Map")
@@ -625,7 +669,8 @@ elif step == "5 · Presentation View":
     main_rows = [o for o in own_rows if not o["owner_department"] or o["owner_department"] == department]
     table=[]
     for o in main_rows:
-        table.append({"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"FY2026 Actual":o["actual"],"Target Improvement":o["improvement"],"FY2027 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"]})
+        target_value = o["fy26_target"]
+        table.append({"Perspective":o["perspective"],"KPI":o["goal"],"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
     if table: st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
     support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
     st.markdown("### Support Needed")
@@ -634,7 +679,7 @@ elif step == "5 · Presentation View":
         st.dataframe(pd.DataFrame(support_table), use_container_width=True, hide_index=True)
     else: st.caption("No cross-department KPI owners assigned.")
     st.markdown("### Dependency from Other Departments")
-    incoming=query("SELECT o.*,s.actual,s.frequency,s.owner,s.owner_department FROM v2_objectives o JOIN v2_scorecard s ON s.objective_id=o.id WHERE s.owner_department=? AND o.department<>? ORDER BY o.department,o.id", (department,department))
+    incoming=query("SELECT o.*,s.actual,s.fy26_target,s.deprioritized,s.frequency,s.owner,s.owner_department FROM v2_objectives o JOIN v2_scorecard s ON s.objective_id=o.id WHERE s.owner_department=? AND o.department<>? ORDER BY o.department,o.id", (department,department))
     if incoming:
         dependency_table = [{"Department":o["department"],"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified","Review Frequency":o["frequency"] or "Not set"} for o in incoming]
         st.dataframe(pd.DataFrame(dependency_table), use_container_width=True, hide_index=True)
@@ -658,7 +703,7 @@ elif step == "6 · Excel Export":
                     found=next((x["code"] for x in items if x["id"]==pair[key]),"")
                     codes.append(found)
             objective_rows.append({"Objective #":i,"SWOT Intersections":", ".join(codes),"Objective":objective_statement(o),"Perspective":o["perspective"]})
-        scorecard_rows=query('SELECT o.perspective AS "Perspective",o.goal AS "KPI",o.baseline AS "FY2026 Actual",o.improvement AS "Target Improvement",o.target AS "FY2027 Target",o.unit AS "Unit",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=?', (department,))
+        scorecard_rows=query('SELECT o.perspective AS "Perspective",o.goal AS "KPI",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.unit AS "Unit",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=?', (department,))
         arrow_rows=[]
         for a in query("SELECT * FROM v2_arrows WHERE department=?", (department,)):
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
