@@ -648,6 +648,7 @@ elif step == "4 · Balanced Scorecard":
         delta_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; const value = Number(params.value); return (value > 0 ? '+' : '') + value.toLocaleString('en-US', {maximumFractionDigits: 2}); }")
         delta_getter = JsCode("function(params) { const actual = params.data['FY26 Actual']; const target = params.data['FY26 Target']; if (actual === null || actual === undefined || target === null || target === undefined || target === '') return null; return Number(actual) - Number(target); }")
         row_style = JsCode("function(params) { if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#e0e0e0'}; return null; }")
+        refresh_changed_row = JsCode("function(params) { params.api.redrawRows({rowNodes: [params.node]}); }")
         gb = GridOptionsBuilder.from_dataframe(scorecard_df)
         gb.configure_default_column(editable=False, resizable=True, sortable=False, filter=False, wrapText=True, autoHeight=True, suppressMovable=True)
         gb.configure_column("_Objective ID", hide=True)
@@ -664,7 +665,7 @@ elif step == "4 · Balanced Scorecard":
         gb.configure_column("Owner", width=130, editable=True, cellEditor="agTextCellEditor")
         gb.configure_column("Owner Department", width=155, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": DEPARTMENTS})
         gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
-        gb.configure_grid_options(getRowStyle=row_style, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
+        gb.configure_grid_options(getRowStyle=row_style, onCellValueChanged=refresh_changed_row, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
         grid_options = gb.build()
         configured_columns = {column["field"]: column for column in grid_options["columnDefs"]}
         grid_options["columnDefs"] = [
