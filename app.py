@@ -643,26 +643,34 @@ elif step == "4 · Balanced Scorecard":
             })
         scorecard_df = pd.DataFrame(table_rows).set_index("_Objective ID")
         styled_scorecard = scorecard_df.style.apply(
-            lambda row: ["background-color: #3b3b3b; color: #a7a7a7" if row["De-prioritize"] else "" for _ in row],
+            lambda row: ["background-color: #555555; color: #e0e0e0" if row["De-prioritize"] else "" for _ in row],
             axis=1,
         )
-        edited_scorecard = st.data_editor(
+        st.dataframe(
             styled_scorecard,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
+                "FY26 Target": st.column_config.NumberColumn(format="localized"),
+                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
+                "Target Improvement": st.column_config.NumberColumn(format="localized"),
+                "FY27 Target": st.column_config.NumberColumn(format="localized"),
+            },
+        )
+        st.markdown("#### Participant inputs")
+        participant_inputs = scorecard_df[["Perspective", "KPI", "FY26 Target", "Review Frequency", "Owner", "Owner Department", "De-prioritize"]]
+        edited_scorecard = st.data_editor(
+            participant_inputs,
             key=f"scorecard-editor-{department}",
             hide_index=True,
             use_container_width=True,
             num_rows="fixed",
-            disabled=["Perspective", "KPI", "Unit", "FY26 Actual", "± Δ", "Target Improvement", "FY27 Target", "Deadline"],
+            disabled=["Perspective", "KPI"],
             column_config={
                 "Perspective": st.column_config.TextColumn("Perspective", width="small"),
                 "KPI": st.column_config.TextColumn("KPI", width="large"),
-                "Unit": st.column_config.TextColumn("Unit", width="small"),
-                "FY26 Actual": st.column_config.NumberColumn("FY26 Actual", format="localized"),
                 "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="localized", help="Participant input"),
-                "± Δ": st.column_config.NumberColumn("± Δ", format="%,+.2f", help="FY26 Actual − FY26 Target"),
-                "Target Improvement": st.column_config.NumberColumn("Target Improvement", format="localized"),
-                "FY27 Target": st.column_config.NumberColumn("FY27 Target", format="localized"),
-                "Deadline": st.column_config.TextColumn("Deadline", width="small"),
                 "Review Frequency": st.column_config.SelectboxColumn("Review Frequency", options=["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]),
                 "Owner": st.column_config.TextColumn("Owner", width="medium"),
                 "Owner Department": st.column_config.SelectboxColumn("Owner Department", options=DEPARTMENTS),
