@@ -1,6 +1,7 @@
 import html
 import io
 import os
+import re
 import sqlite3
 import textwrap
 from datetime import date
@@ -186,6 +187,25 @@ def objective_statement(obj):
     target = f"to {fmt_num(obj['target'])} {obj['unit']}".strip() if obj["target"] is not None else "to be determined"
     deadline = as_date(obj["deadline"]).strftime("%B %d, %Y")
     return f"{obj['goal']} by {improvement} {baseline} {target} by {deadline}"
+
+
+def scorecard_kpi(obj):
+    """Use the measure name as the KPI, leaving the directional action in the objective."""
+    goal = (obj.get("goal") or "").strip()
+    action_verbs = (
+        "increase", "increasing", "decrease", "decreasing", "reduce", "reducing",
+        "improve", "improving", "raise", "raising", "grow", "growing", "expand",
+        "expanding", "boost", "boosting", "enhance", "enhancing", "achieve",
+        "achieving", "maintain", "maintaining", "strengthen", "strengthening",
+        "develop", "developing", "establish", "establishing", "build", "building",
+    )
+    if goal:
+        verbs = "|".join(action_verbs)
+        goal = re.sub(rf"^(?:{verbs})\b\s*", "", goal, flags=re.IGNORECASE)
+        goal = re.sub(r"^(?:the|a|an)\s+", "", goal, flags=re.IGNORECASE)
+        if goal:
+            goal = goal[0].upper() + goal[1:]
+    return goal or obj.get("goal", "")
 
 
 init_db()
@@ -603,7 +623,7 @@ elif step == "4 · Balanced Scorecard":
             table_rows.append({
                 "_Objective ID": obj["id"],
                 "Perspective": obj["perspective"],
-                "KPI": obj["goal"],
+                "KPI": scorecard_kpi(obj),
                 "FY26 Actual": baseline,
                 "FY26 Target": fy26_target,
                 "± Δ": baseline - fy26_target if baseline is not None and fy26_target is not None else None,
@@ -670,7 +690,7 @@ elif step == "5 · Presentation View":
     table=[]
     for o in main_rows:
         target_value = o["fy26_target"]
-        table.append({"Perspective":o["perspective"],"KPI":o["goal"],"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
+        table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
     if table: st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
     support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
     st.markdown("### Support Needed")
@@ -703,7 +723,10 @@ elif step == "6 · Excel Export":
                     found=next((x["code"] for x in items if x["id"]==pair[key]),"")
                     codes.append(found)
             objective_rows.append({"Objective #":i,"SWOT Intersections":", ".join(codes),"Objective":objective_statement(o),"Perspective":o["perspective"]})
-        scorecard_rows=query('SELECT o.perspective AS "Perspective",o.goal AS "KPI",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.unit AS "Unit",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=?', (department,))
+        scorecard_rows=query('SELECT o.id AS "_Objective ID",o.perspective AS "Perspective",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.unit AS "Unit",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id', (department,))
+        for row in scorecard_rows:
+            row["KPI"] = scorecard_kpi(obj_by_id[row["_Objective ID"]])
+            del row["_Objective ID"]
         arrow_rows=[]
         for a in query("SELECT * FROM v2_arrows WHERE department=?", (department,)):
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
