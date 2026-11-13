@@ -475,7 +475,7 @@ elif step == "3 · Strategy Map":
                     "symbol": "roundRect",
                     "symbolSize": [card_width, card_height],
                     "itemStyle": {"color": perspective_colors[perspective], "borderColor": "#d69b18" if is_pending else "#c4c8ce", "borderWidth": 4 if is_pending else 1, "shadowBlur": 8 if is_pending else 0, "shadowColor": "rgba(214,155,24,.28)"},
-                    "label": {"show": True, "position": "insideLeft", "distance": 12, "width": card_width - 30, "overflow": "breakAll", "fontSize": 12, "lineHeight": 16, "color": "#18252c", "align": "left", "verticalAlign": "middle"},
+                    "label": {"show": True, "position": "insideLeft", "distance": 12, "width": card_width - 30, "overflow": "break", "fontSize": 12, "lineHeight": 16, "color": "#18252c", "align": "left", "verticalAlign": "middle"},
                 })
 
         link_data = []
