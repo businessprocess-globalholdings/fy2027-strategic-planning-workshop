@@ -647,7 +647,7 @@ elif step == "4 · Balanced Scorecard":
         number_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; return Number(params.value).toLocaleString('en-US', {maximumFractionDigits: 2}); }")
         delta_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; const value = Number(params.value); return (value > 0 ? '+' : '') + value.toLocaleString('en-US', {maximumFractionDigits: 2}); }")
         delta_getter = JsCode("function(params) { const actual = params.data['FY26 Actual']; const target = params.data['FY26 Target']; if (actual === null || actual === undefined || target === null || target === undefined || target === '') return null; return Number(actual) - Number(target); }")
-        row_style = JsCode("function(params) { if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#f0f0f0'}; return {backgroundColor: '#e5e7eb', color: '#202124'}; }")
+        row_style = JsCode("function(params) { const separator = '1px solid #555555'; if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#c7c7c7', borderBottom: separator}; return {backgroundColor: '#e5e7eb', color: '#202124', borderBottom: separator}; }")
         refresh_changed_row = JsCode("function(params) { params.api.redrawRows({rowNodes: [params.node]}); }")
         gb = GridOptionsBuilder.from_dataframe(scorecard_df)
         gb.configure_default_column(editable=False, resizable=True, sortable=False, filter=False, wrapText=True, autoHeight=True, suppressMovable=True, headerStyle={"backgroundColor": "#8c6d00", "color": "#ffffff", "fontWeight": "bold"})
