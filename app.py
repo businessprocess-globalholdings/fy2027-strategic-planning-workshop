@@ -492,6 +492,10 @@ elif step == "3 · Strategy Map":
             "series": [{
                 "id": "strategy-objectives",
                 "type": "graph",
+                "left": 0,
+                "top": 0,
+                "width": map_width,
+                "height": map_height,
                 "layout": "none",
                 "roam": False,
                 "data": node_data,
