@@ -427,6 +427,12 @@ elif step == "3 · Strategy Map":
             "Internal Process": "INTERNAL\nPROCESS",
             "Organizational Capacity": "ORGANIZATIONAL\nCAPACITY",
         }
+        lane_title_colors = {
+            "Financial Value": "#cdb8ef",
+            "Customer and Stakeholder Value": "#a9d0f2",
+            "Internal Process": "#a7d9ae",
+            "Organizational Capacity": "#f4d27d",
+        }
         map_width = 1040
         label_width = 140
         card_width = 180
@@ -451,8 +457,9 @@ elif step == "3 · Strategy Map":
         for perspective in lane_order:
             lane_top = lane_tops[perspective]
             lane_height = lane_heights[perspective]
-            graphics.append({"type": "rect", "left": 0, "top": lane_top, "shape": {"width": map_width, "height": lane_height}, "style": {"fill": perspective_colors[perspective], "stroke": "#c9cdd2", "lineWidth": 1}, "silent": True, "z": 0})
-            graphics.append({"type": "text", "left": 18, "top": lane_top + 12, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "left", "verticalAlign": "top", "lineHeight": 18}, "silent": True, "z": 1})
+            if perspective != lane_order[-1]:
+                graphics.append({"type": "rect", "left": 0, "top": lane_top + lane_height + lane_gap / 2, "shape": {"width": map_width, "height": 1}, "style": {"fill": "#46515a"}, "silent": True, "z": 0})
+            graphics.append({"type": "text", "left": 18, "top": lane_top + 12, "style": {"text": lane_labels[perspective], "fill": lane_title_colors[perspective], "font": "bold 14px sans-serif", "align": "left", "verticalAlign": "top", "lineHeight": 18}, "silent": True, "z": 1})
             for local_index, obj in enumerate(by_p[perspective]):
                 objective_number = number_by_id[obj["id"]]
                 card_row = local_index // 4
@@ -484,7 +491,7 @@ elif step == "3 · Strategy Map":
                 link_data.append({
                     "source": str(arrow["source_id"]),
                     "target": str(arrow["target_id"]),
-                    "lineStyle": {"color": "#69737e", "width": 2, "type": "solid" if arrow["line_type"] == "Straight arrow" else "dashed", "curveness": 0.12},
+                    "lineStyle": {"color": "#aab4bf", "width": 2, "type": "solid" if arrow["line_type"] == "Straight arrow" else "dashed", "curveness": 0.12},
                 })
 
         map_spec = {
@@ -500,7 +507,7 @@ elif step == "3 · Strategy Map":
                 "links": link_data,
                 "edgeSymbol": ["none", "arrow"],
                 "edgeSymbolSize": [0, 10],
-                "lineStyle": {"color": "#69737e", "width": 2},
+                "lineStyle": {"color": "#aab4bf", "width": 2},
                 "selectedMode": "single",
                 "select": {"itemStyle": {"borderColor": "#d69b18", "borderWidth": 4, "shadowBlur": 8, "shadowColor": "rgba(214,155,24,.28)"}},
                 "z": 2,
