@@ -492,7 +492,7 @@ elif step == "3 · Strategy Map":
                 "id": "strategy-objectives",
                 "type": "graph",
                 "layout": "none",
-                "roam": True,
+                "roam": False,
                 "data": node_data,
                 "links": link_data,
                 "edgeSymbol": ["none", "arrow"],
