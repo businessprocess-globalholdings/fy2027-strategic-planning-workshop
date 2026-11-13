@@ -452,13 +452,14 @@ elif step == "3 · Strategy Map":
             lane_top = lane_tops[perspective]
             lane_height = lane_heights[perspective]
             graphics.append({"type": "rect", "left": 0, "top": lane_top, "shape": {"width": map_width, "height": lane_height}, "style": {"fill": perspective_colors[perspective], "stroke": "#c9cdd2", "lineWidth": 1}, "silent": True, "z": 0})
-            graphics.append({"type": "text", "left": label_width / 2, "top": lane_top + lane_height / 2, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "center", "verticalAlign": "middle", "lineHeight": 18}, "silent": True, "z": 1})
+            graphics.append({"type": "text", "left": 18, "top": lane_top + 12, "style": {"text": lane_labels[perspective], "fill": "#25313a", "font": "bold 14px sans-serif", "align": "left", "verticalAlign": "top", "lineHeight": 18}, "silent": True, "z": 1})
             for local_index, obj in enumerate(by_p[perspective]):
                 objective_number = number_by_id[obj["id"]]
                 card_row = local_index // 4
                 card_column = local_index % 4
+                row_count = max(1, (len(by_p[perspective]) + 3) // 4)
                 x = label_width + card_gap + card_width / 2 + card_column * (card_width + card_gap)
-                y = lane_top + 24 + card_row * (card_height + row_gap) + card_height / 2
+                y = lane_top + lane_height / 2 + (card_row - (row_count - 1) / 2) * (card_height + row_gap)
                 full_text = objective_statement(obj)
                 visual_text = "\n".join(textwrap.wrap(f"{objective_number}. {full_text}", width=35, break_long_words=True, break_on_hyphens=False))
                 is_pending = obj["id"] == pending_source_id
