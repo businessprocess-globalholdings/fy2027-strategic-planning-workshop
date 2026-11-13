@@ -710,12 +710,16 @@ elif step == "5 · Presentation View":
     for a in arrow_rows:
         if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id:
             st.caption(f"{obj_by_id[a['source_id']]['goal']} {'→' if a['line_type']=='Straight arrow' else '⇢'} {obj_by_id[a['target_id']]['goal']}")
+    incoming = query("SELECT o.*,s.actual,s.fy26_target,s.deprioritized,s.frequency,s.owner,s.owner_department FROM v2_objectives o JOIN v2_scorecard s ON s.objective_id=o.id WHERE s.owner_department=? AND o.department<>? ORDER BY o.department,o.id", (department,department))
+    main_rows = [o for o in own_rows if (not o["owner_department"] or o["owner_department"] == department) and not bool(o["deprioritized"])]
+    support = [o for o in own_rows if o["owner_department"] and o["owner_department"] != department and not bool(o["deprioritized"])]
+    active_incoming = [o for o in incoming if not bool(o["deprioritized"])]
+    lower_priority = [o for o in own_rows if bool(o["deprioritized"])] + [o for o in incoming if bool(o["deprioritized"])]
     st.markdown("### Main Balanced Scorecard")
-    main_rows = [o for o in own_rows if not o["owner_department"] or o["owner_department"] == department]
     table=[]
     for o in main_rows:
         target_value = o["fy26_target"]
-        table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
+        table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"]})
     if table:
         st.dataframe(
             pd.DataFrame(table),
@@ -729,18 +733,31 @@ elif step == "5 · Presentation View":
                 "FY27 Target": st.column_config.NumberColumn(format="localized"),
             },
         )
-    support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
     st.markdown("### Support Needed")
     if support:
         support_table = [{"Supporting Department":o["owner_department"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified"} for o in support]
         st.dataframe(pd.DataFrame(support_table), use_container_width=True, hide_index=True)
-    else: st.caption("No cross-department KPI owners assigned.")
+    else: st.caption("No active cross-department KPI owners assigned.")
     st.markdown("### Dependency from Other Departments")
-    incoming=query("SELECT o.*,s.actual,s.fy26_target,s.deprioritized,s.frequency,s.owner,s.owner_department FROM v2_objectives o JOIN v2_scorecard s ON s.objective_id=o.id WHERE s.owner_department=? AND o.department<>? ORDER BY o.department,o.id", (department,department))
-    if incoming:
-        dependency_table = [{"Department":o["department"],"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified","Review Frequency":o["frequency"] or "Not set"} for o in incoming]
+    if active_incoming:
+        dependency_table = [{"Department":o["department"],"Perspective":o["perspective"],"KPI / Objective":objective_statement(o),"Owner":o["owner"] or "Not specified","Review Frequency":o["frequency"] or "Not set"} for o in active_incoming]
         st.dataframe(pd.DataFrame(dependency_table), use_container_width=True, hide_index=True)
-    else: st.caption("No KPIs owned by this department on other scorecards.")
+    else: st.caption("No active KPIs owned by this department on other scorecards.")
+    st.markdown("### Lower-Priority KPIs")
+    if lower_priority:
+        lower_priority_table = [{"Source Department":o["department"],"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":o["fy26_target"],"± Δ":o["baseline"] - o["fy26_target"] if o["baseline"] is not None and o["fy26_target"] is not None else None,"FY27 Target":o["target"],"Owner Department":o["owner_department"],"Owner":o["owner"] or "Not specified"} for o in lower_priority]
+        st.dataframe(
+            pd.DataFrame(lower_priority_table),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
+                "FY26 Target": st.column_config.NumberColumn(format="localized"),
+                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
+                "FY27 Target": st.column_config.NumberColumn(format="localized"),
+            },
+        )
+    else: st.caption("No KPIs have been marked lower priority.")
 
 elif step == "6 · Excel Export":
     st.subheader("Day 2 Handoff · Excel Export")
