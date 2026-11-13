@@ -296,7 +296,7 @@ elif step == "2 · TOWS Evaluation":
                             node => node.textContent.trim().startsWith("New objective for ")
                           );
                           if (target) {{
-                            target.style.scrollMarginTop = "16px";
+                            target.style.scrollMarginTop = "80px";
                             target.scrollIntoView({{ behavior: "smooth", block: "start", inline: "nearest" }});
                           }}
                         }} catch (error) {{}}
