@@ -647,10 +647,10 @@ elif step == "4 · Balanced Scorecard":
         number_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; return Number(params.value).toLocaleString('en-US', {maximumFractionDigits: 2}); }")
         delta_formatter = JsCode("function(params) { if (params.value === null || params.value === undefined || params.value === '') return ''; const value = Number(params.value); return (value > 0 ? '+' : '') + value.toLocaleString('en-US', {maximumFractionDigits: 2}); }")
         delta_getter = JsCode("function(params) { const actual = params.data['FY26 Actual']; const target = params.data['FY26 Target']; if (actual === null || actual === undefined || target === null || target === undefined || target === '') return null; return Number(actual) - Number(target); }")
-        row_style = JsCode("function(params) { if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#e0e0e0'}; return null; }")
+        row_style = JsCode("function(params) { if (params.data && params.data['De-prioritize']) return {backgroundColor: '#555555', color: '#f0f0f0'}; return {backgroundColor: '#e5e7eb', color: '#202124'}; }")
         refresh_changed_row = JsCode("function(params) { params.api.redrawRows({rowNodes: [params.node]}); }")
         gb = GridOptionsBuilder.from_dataframe(scorecard_df)
-        gb.configure_default_column(editable=False, resizable=True, sortable=False, filter=False, wrapText=True, autoHeight=True, suppressMovable=True)
+        gb.configure_default_column(editable=False, resizable=True, sortable=False, filter=False, wrapText=True, autoHeight=True, suppressMovable=True, headerStyle={"backgroundColor": "#8c6d00", "color": "#ffffff", "fontWeight": "bold"})
         gb.configure_column("_Objective ID", hide=True)
         gb.configure_column("Perspective", width=90, pinned="left")
         gb.configure_column("KPI", flex=2, minWidth=230)
@@ -667,16 +667,6 @@ elif step == "4 · Balanced Scorecard":
         gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
         gb.configure_grid_options(getRowStyle=row_style, onCellValueChanged=refresh_changed_row, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
         grid_options = gb.build()
-        configured_columns = {column["field"]: column for column in grid_options["columnDefs"]}
-        grid_options["columnDefs"] = [
-            configured_columns["Perspective"],
-            configured_columns["KPI"],
-            configured_columns["Unit"],
-            {"headerName": "FY26 YTD", "marryChildren": True, "children": [configured_columns[name] for name in ["FY26 Actual", "FY26 Target", "± Δ"]]},
-            configured_columns["Target Improvement"],
-            {"headerName": "FY27", "marryChildren": True, "children": [configured_columns[name] for name in ["FY27 Target", "Deadline", "Review Frequency", "Owner", "Owner Department"]]},
-            configured_columns["De-prioritize"],
-        ]
         grid_response = AgGrid(
             scorecard_df,
             gridOptions=grid_options,
