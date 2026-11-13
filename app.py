@@ -650,11 +650,11 @@ elif step == "4 · Balanced Scorecard":
             column_config={
                 "Perspective": st.column_config.TextColumn("Perspective", width="small"),
                 "KPI": st.column_config.TextColumn("KPI", width="large"),
-                "FY26 Actual": st.column_config.NumberColumn("FY26 Actual", format="%.2f"),
-                "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="%.2f", help="Participant input"),
-                "± Δ": st.column_config.NumberColumn("± Δ", format="%+.2f", help="FY26 Actual − FY26 Target"),
-                "Target Improvement": st.column_config.NumberColumn("Target Improvement", format="%.2f"),
-                "FY27 Target": st.column_config.NumberColumn("FY27 Target", format="%.2f"),
+                "FY26 Actual": st.column_config.NumberColumn("FY26 Actual", format="localized"),
+                "FY26 Target": st.column_config.NumberColumn("FY26 Target", format="localized", help="Participant input"),
+                "± Δ": st.column_config.NumberColumn("± Δ", format="%,+.2f", help="FY26 Actual − FY26 Target"),
+                "Target Improvement": st.column_config.NumberColumn("Target Improvement", format="localized"),
+                "FY27 Target": st.column_config.NumberColumn("FY27 Target", format="localized"),
                 "Deadline": st.column_config.TextColumn("Deadline", width="small"),
                 "Review Frequency": st.column_config.SelectboxColumn("Review Frequency", options=["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]),
                 "Owner": st.column_config.TextColumn("Owner", width="medium"),
@@ -691,7 +691,19 @@ elif step == "5 · Presentation View":
     for o in main_rows:
         target_value = o["fy26_target"]
         table.append({"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"FY26 Actual":o["baseline"],"FY26 Target":target_value,"± Δ":o["baseline"] - target_value if o["baseline"] is not None and target_value is not None else None,"Target Improvement":o["improvement"],"FY27 Target":o["target"],"Deadline":as_date(o["deadline"]).strftime("%B %d, %Y"),"Review Frequency":o["frequency"],"Owner":o["owner"],"De-prioritized":bool(o["deprioritized"])})
-    if table: st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+    if table:
+        st.dataframe(
+            pd.DataFrame(table),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "FY26 Actual": st.column_config.NumberColumn(format="localized"),
+                "FY26 Target": st.column_config.NumberColumn(format="localized"),
+                "± Δ": st.column_config.NumberColumn(format="%,+.2f"),
+                "Target Improvement": st.column_config.NumberColumn(format="localized"),
+                "FY27 Target": st.column_config.NumberColumn(format="localized"),
+            },
+        )
     support=[o for o in own_rows if o["owner_department"] and o["owner_department"] != department]
     st.markdown("### Support Needed")
     if support:
@@ -734,4 +746,11 @@ elif step == "6 · Excel Export":
         with pd.ExcelWriter(buffer,engine="openpyxl") as writer:
             sheets=[("SWOT",swot_rows),("TOWS Objectives",objective_rows),("Strategy Map",arrow_rows),("Balanced Scorecard",scorecard_rows),("Support Needed",support_rows),("Key Initiatives",[]),("Budget Requirements",[]),("Implementation Schedule",[])]
             for name,data in sheets: pd.DataFrame(data).to_excel(writer,sheet_name=name,index=False)
+            scorecard_sheet = writer.sheets["Balanced Scorecard"]
+            headers = [cell.value for cell in scorecard_sheet[1]]
+            for column_index, header in enumerate(headers, 1):
+                if header in {"FY26 Actual", "FY26 Target", "± Δ", "Target Improvement", "FY27 Target"}:
+                    number_format = "+#,##0.##;-#,##0.##;0" if header == "± Δ" else "#,##0.##;-#,##0.##"
+                    for row_index in range(2, scorecard_sheet.max_row + 1):
+                        scorecard_sheet.cell(row=row_index, column=column_index).number_format = number_format
         st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department.replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
