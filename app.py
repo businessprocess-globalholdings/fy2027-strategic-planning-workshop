@@ -297,7 +297,7 @@ elif step == "2 · TOWS Evaluation":
                           );
                           if (target) {{
                             target.style.scrollMarginTop = "80px";
-                            target.scrollIntoView({{ behavior: "smooth", block: "start", inline: "nearest" }});
+                            target.scrollIntoView({{ block: "start", inline: "nearest" }});
                           }}
                         }} catch (error) {{}}
                       }};
