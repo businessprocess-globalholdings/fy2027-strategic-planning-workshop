@@ -351,21 +351,24 @@ elif step == "2 · TOWS Evaluation":
                 with st.container(border=True):
                     st.markdown(f"**{number}. {obj['perspective']}**")
                     st.write(objective_statement(obj))
-                    with st.expander("Edit objective"):
-                        with st.form(f"edit-obj-{obj['id']}"):
-                            goal = st.text_input("Direction / goal", obj["goal"])
-                            improvement = st.number_input("Improvement amount (use 0 for no change)", value=float(obj["improvement"] or 0), step=1.0)
-                            baseline = st.text_input("FY2026 baseline (leave blank if new)", "" if obj["baseline"] is None else str(obj["baseline"]))
-                            unit = st.text_input("Unit", obj["unit"])
-                            target = st.text_input("FY2027 target", "" if obj["target"] is None else str(obj["target"]))
-                            deadline = st.date_input("Deadline", as_date(obj["deadline"]))
-                            perspective = st.selectbox("Perspective", PERSPECTIVES, index=PERSPECTIVES.index(obj["perspective"]))
-                            save = st.form_submit_button("Save changes")
-                            if save:
-                                write("UPDATE v2_objectives SET goal=?,improvement=?,baseline=?,target=?,unit=?,deadline=?,perspective=? WHERE id=?", (goal.strip(), improvement if improvement else None, float(baseline) if baseline.strip() else None, float(target) if target.strip() else None, unit.strip(), deadline.isoformat(), perspective, obj["id"]))
-                                st.rerun()
-                    if st.button("Remove objective", key=f"remove-obj-{obj['id']}"):
-                        write("DELETE FROM v2_objectives WHERE id=?", (obj["id"],)); st.rerun()
+                    action_cols = st.columns([4, 1], gap="small")
+                    with action_cols[0]:
+                        with st.expander("Edit objective"):
+                            with st.form(f"edit-obj-{obj['id']}"):
+                                goal = st.text_input("Direction / goal", obj["goal"])
+                                improvement = st.number_input("Improvement amount (use 0 for no change)", value=float(obj["improvement"] or 0), step=1.0)
+                                baseline = st.text_input("FY2026 baseline (leave blank if new)", "" if obj["baseline"] is None else str(obj["baseline"]))
+                                unit = st.text_input("Unit", obj["unit"])
+                                target = st.text_input("FY2027 target", "" if obj["target"] is None else str(obj["target"]))
+                                deadline = st.date_input("Deadline", as_date(obj["deadline"]))
+                                perspective = st.selectbox("Perspective", PERSPECTIVES, index=PERSPECTIVES.index(obj["perspective"]))
+                                save = st.form_submit_button("Save changes")
+                                if save:
+                                    write("UPDATE v2_objectives SET goal=?,improvement=?,baseline=?,target=?,unit=?,deadline=?,perspective=? WHERE id=?", (goal.strip(), improvement if improvement else None, float(baseline) if baseline.strip() else None, float(target) if target.strip() else None, unit.strip(), deadline.isoformat(), perspective, obj["id"]))
+                                    st.rerun()
+                    with action_cols[1]:
+                        if st.button("Remove objective", key=f"remove-obj-{obj['id']}"):
+                            write("DELETE FROM v2_objectives WHERE id=?", (obj["id"],)); st.rerun()
         else:
             st.caption("Objectives will appear here as intersections are developed.")
 
