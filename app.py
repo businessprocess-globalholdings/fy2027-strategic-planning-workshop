@@ -218,19 +218,20 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
         cell.font = Font(name="Calibri", size=size, bold=bold, color=foreground)
         cell.alignment = Alignment(vertical="center", indent=1)
 
-    band("A1:M1", "FY2027 Key Initiatives & Budget Requirements", "F6F2E9", "171717", 20)
-    band("A2:M2", "Use the blank rows beside each KPI. For extra lines, insert a row within its block and copy the four input cells from a neighboring line.",
+    band("A1:N1", "FY2027 Key Initiatives & Budget Requirements", "F6F2E9", "171717", 20)
+    band("A2:N2", "Use the blank rows beside each KPI. For extra lines, insert a row within its block and copy the input cells from a neighboring line.",
          "F6F2E9", "48433B", 11, False)
     band("A3:I3", "FY2027 Balanced Scorecard", "F0D487", "251D09", 13)
-    band("J3:M3", "Key Initiatives & Budget Requirements", "242424", "FFFFFF", 13)
+    band("J3:N3", "Key Initiatives & Budget Requirements", "242424", "FFFFFF", 13)
     band("F4:I4", "FY2027", "C99A22", "171209")
     for index, height in enumerate([34, 24, 28, 22, 30], 1):
         sheet.row_dimensions[index].height = height
 
     source_fields = ["Perspective", "KPI", "Unit", "FY26 Actual", "Target Improvement",
                      "FY27 Target", "Deadline", "Review Frequency", "Owner"]
-    headers = [*source_fields, "Key Initiative", "KPI Impact", "Budget Requirement", "Category"]
-    widths = [23, 35, 15, 15, 16, 15, 15, 16, 18, 38, 27, 28, 13]
+    headers = [*source_fields, "Key Initiative", "KPI Impact", "Budget Requirement (Php)",
+               "Budget Details/Justification", "Category"]
+    widths = [23, 35, 15, 15, 16, 15, 15, 16, 18, 36, 25, 20, 34, 13]
     for column, (label, width) in enumerate(zip(headers, widths), 1):
         sheet.column_dimensions[get_column_letter(column)].width = width
         if 6 <= column <= 9:
@@ -251,7 +252,7 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
     divider = Side(style="thin", color="A49A86")
     first_row = 6
     if not scorecard_rows:
-        band("A6:M6", "This department has no scorecard KPIs yet.", "F6F2E9", "48433B", 11, False)
+        band("A6:N6", "This department has no scorecard KPIs yet.", "F6F2E9", "48433B", 11, False)
         sheet.row_dimensions[6].height = 26
         return
 
@@ -277,16 +278,18 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
                 cell.number_format = "mmm d, yyyy"
         for row_number in range(first_row, last_row + 1):
             sheet.row_dimensions[row_number].height = 34
-            for column in range(10, 14):
+            for column in range(10, 15):
                 cell = sheet.cell(row_number, column)
                 cell.fill = fill("FFFFFF")
                 cell.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
                 cell.border = Border(left=line, right=line,
                                      top=divider if row_number == first_row else line,
                                      bottom=divider if row_number == last_row else line)
-        categories.add(f"M{first_row}:M{last_row}")
+                if column == 12:
+                    cell.number_format = '"Php "#,##0.00'
+        categories.add(f"N{first_row}:N{last_row}")
         first_row = last_row + 1
-    sheet.print_area = f"A1:M{first_row - 1}"
+    sheet.print_area = f"A1:N{first_row - 1}"
 
 
 def scorecard_kpi(obj):
