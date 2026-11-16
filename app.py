@@ -667,12 +667,15 @@ elif step == "4 · Balanced Scorecard":
         gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
         gb.configure_grid_options(getRowStyle=row_style, onCellValueChanged=refresh_changed_row, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
         grid_options = gb.build()
+        owner_department_picker = '[col-id="Owner Department"] .ag-picker-field-wrapper'
         # AG Grid attaches the listbox to the grid popup, outside the editing cell.
         owner_department_menu = (
-            '.ag-root-wrapper:has([col-id="Owner Department"] '
-            '.ag-picker-field-wrapper[aria-expanded="true"]) .ag-select-list[role="listbox"]'
+            f'.ag-root-wrapper:has({owner_department_picker}[aria-expanded="true"]) '
+            '.ag-select-list[role="listbox"]'
         )
         owner_department_css = {
+            owner_department_picker: {"background-color": "#ffffff", "color": "#1e293b"},
+            f"{owner_department_picker} .ag-icon-small-down": {"color": "#1e293b"},
             owner_department_menu: {
                 "background-color": "#ffffff", "color": "#1e293b", "border": "1px solid #64748b"
             },
