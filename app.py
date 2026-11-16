@@ -16,6 +16,21 @@ from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, JsCode
 st.set_page_config(page_title="FY2027 Strategy Workshop", page_icon="🧭", layout="wide")
 DB_PATH = Path(os.getenv("WORKSHOP_DB", "workshop.db"))
 DEPARTMENTS = [x.strip() for x in os.getenv("WORKSHOP_DEPARTMENTS", "Department 1,Department 2,Department 3,Department 4,Department 5").split(",") if x.strip()]
+# Keep the existing department keys for database queries and owner assignments.
+DEPARTMENT_NAMES = {
+    "Department 1": "Freight Forwarding",
+    "Department 2": "Operations",
+    "Department 3": "Accounting",
+    "Department 4": "Human Resources",
+    "Department 5": "Test Department",
+}
+DEPARTMENT_KEYS_BY_NAME = {name: key for key, name in DEPARTMENT_NAMES.items() if key in DEPARTMENTS}
+
+
+def department_name(key):
+    return DEPARTMENT_NAMES.get(key, key)
+
+
 PERSPECTIVES = ["Organizational Capacity", "Internal Process", "Customer and Stakeholder Value", "Financial Value"]
 QUADRANTS = ["Strength", "Weakness", "Opportunity", "Threat"]
 PAIR_TYPES = [("Strength", "Opportunity", "S", "O"), ("Strength", "Threat", "S", "T"), ("Weakness", "Opportunity", "W", "O"), ("Weakness", "Threat", "W", "T")]
@@ -316,7 +331,7 @@ st.markdown('<style>.block-container{padding-top:1.5rem}.hero{padding:1.2rem 1.6
 st.markdown('<div class="hero"><h1>FY2027 Strategic Planning Workshop</h1><p>Department workspace · SWOT → TOWS → Strategy Map → Balanced Scorecard</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
-    department = st.selectbox("Department", DEPARTMENTS)
+    department = st.selectbox("Department", DEPARTMENTS, format_func=department_name)
     step = st.radio("Workshop steps", ["1 · SWOT Analysis", "2 · TOWS Evaluation", "3 · Strategy Map", "4 · Balanced Scorecard", "5 · Presentation View", "6 · Excel Export"])
     st.caption("Balanced Scorecard edits save automatically.")
 
@@ -653,7 +668,7 @@ elif step == "3 · Strategy Map":
             theme=None,
             key=f"strategy-map-{department}-{st.session_state[map_epoch_key]}",
             on_select="rerun",
-            alt=f"Interactive strategy map for {department}. Select two objective cards to connect them.",
+            alt=f"Interactive strategy map for {department_name(department)}. Select two objective cards to connect them.",
         )
 
         selected_node_indices = []
@@ -741,7 +756,7 @@ elif step == "4 · Balanced Scorecard":
                 "Deadline": as_date(obj["deadline"]).strftime("%b %d, %Y"),
                 "Review Frequency": data.get("frequency") or "",
                 "Owner": data.get("owner") or "",
-                "Owner Department": data.get("owner_department") or department,
+                "Owner Department": department_name(data.get("owner_department") or department),
                 "De-prioritize": bool(data.get("deprioritized", False)),
             })
         scorecard_df = pd.DataFrame(table_rows)
@@ -765,7 +780,7 @@ elif step == "4 · Balanced Scorecard":
         gb.configure_column("Deadline", width=120)
         gb.configure_column("Review Frequency", width=145, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": ["", "Daily", "Weekly", "Monthly", "Quarterly", "Semiannual", "Annual"]})
         gb.configure_column("Owner", width=130, editable=True, cellEditor="agTextCellEditor")
-        gb.configure_column("Owner Department", width=155, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": DEPARTMENTS})
+        gb.configure_column("Owner Department", width=155, editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": [department_name(key) for key in DEPARTMENTS]})
         gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
         gb.configure_grid_options(getRowStyle=row_style, onCellValueChanged=refresh_changed_row, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
         grid_options = gb.build()
@@ -816,6 +831,7 @@ elif step == "4 · Balanced Scorecard":
                 frequency = "" if pd.isna(row.get("Review Frequency")) else str(row.get("Review Frequency") or "")
                 owner = "" if pd.isna(row.get("Owner")) else str(row.get("Owner") or "").strip()
                 owner_department = "" if pd.isna(row.get("Owner Department")) else str(row.get("Owner Department") or "")
+                owner_department = DEPARTMENT_KEYS_BY_NAME.get(owner_department, owner_department)
                 deprioritized = bool(row.get("De-prioritize", False))
                 old_target = current.get("fy26_target")
                 same_target = (old_target is None and target_value is None) or (old_target is not None and target_value is not None and float(old_target) == target_value)
@@ -825,7 +841,7 @@ elif step == "4 · Balanced Scorecard":
                         (objective_id, target_value, deprioritized, frequency, owner, owner_department),
                     )
 elif step == "5 · Presentation View":
-    st.subheader(f"{department} · Department Presentation")
+    st.subheader(f"{department_name(department)} · Department Presentation")
     st.markdown("### Strategy Map")
     for p in reversed(PERSPECTIVES):
         entries=[o for o in objectives if o["perspective"]==p]
@@ -860,7 +876,7 @@ elif step == "5 · Presentation View":
                 "Owner": row["owner"],
             }
             if department_column:
-                entry[department_column] = row[department_key]
+                entry[department_column] = department_name(row[department_key])
             table.append(entry)
         st.dataframe(
             pd.DataFrame(table),
@@ -890,7 +906,7 @@ elif step == "5 · Presentation View":
         st.caption("No active KPIs owned by this department on other scorecards.")
     st.markdown("### Lower-Priority KPIs")
     if lower_priority:
-        lower_priority_table = [{"Source Department":o["department"],"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":o["fy26_target"],"± Δ":o["baseline"] - o["fy26_target"] if o["baseline"] is not None and o["fy26_target"] is not None else None,"FY27 Target":o["target"],"Owner Department":o["owner_department"],"Owner":o["owner"] or "Not specified"} for o in lower_priority]
+        lower_priority_table = [{"Source Department":department_name(o["department"]),"Perspective":o["perspective"],"KPI":scorecard_kpi(o),"Unit":o["unit"],"FY26 Actual":o["baseline"],"FY26 Target":o["fy26_target"],"± Δ":o["baseline"] - o["fy26_target"] if o["baseline"] is not None and o["fy26_target"] is not None else None,"FY27 Target":o["target"],"Owner Department":department_name(o["owner_department"]),"Owner":o["owner"] or "Not specified"} for o in lower_priority]
         st.dataframe(
             pd.DataFrame(lower_priority_table),
             use_container_width=True,
@@ -926,10 +942,11 @@ elif step == "6 · Excel Export":
         for row in scorecard_rows:
             row["KPI"] = scorecard_kpi(obj_by_id[row["_Objective ID"]])
             del row["_Objective ID"]
+            row["Owner Department"] = department_name(row["Owner Department"])
         arrow_rows=[]
         for a in query("SELECT * FROM v2_arrows WHERE department=?", (department,)):
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
-        support_rows=[{"Objective":o["goal"],"Supporting Department":o["owner_department"],"Owner":o["owner"]} for o in own_rows if o["owner_department"] and o["owner_department"]!=department]
+        support_rows=[{"Objective":o["goal"],"Supporting Department":department_name(o["owner_department"]),"Owner":o["owner"]} for o in own_rows if o["owner_department"] and o["owner_department"]!=department]
         with pd.ExcelWriter(buffer,engine="openpyxl") as writer:
             sheets=[("SWOT",swot_rows),("TOWS Objectives",objective_rows),("Strategy Map",arrow_rows),("Balanced Scorecard",scorecard_rows),("Support Needed",support_rows),("Implementation Schedule",[])]
             for name,data in sheets: pd.DataFrame(data).to_excel(writer,sheet_name=name,index=False)
@@ -941,4 +958,4 @@ elif step == "6 · Excel Export":
                     for row_index in range(2, scorecard_sheet.max_row + 1):
                         scorecard_sheet.cell(row=row_index, column=column_index).number_format = number_format
             add_initiatives_budget_sheet(writer.book, scorecard_rows)
-        st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department.replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department_name(department).replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
