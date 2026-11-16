@@ -190,6 +190,105 @@ def objective_statement(obj):
     return f"{obj['goal']} by {improvement} {baseline} {target} by {deadline}"
 
 
+def add_initiatives_budget_sheet(workbook, scorecard_rows):
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    sheet = workbook.create_sheet("Initiatives & Budget")
+    workbook.active = sheet
+    sheet.sheet_view.showGridLines = False
+    sheet.sheet_view.zoomScale = 80
+    sheet.freeze_panes = "C6"
+    sheet.sheet_properties.tabColor = "C99A22"
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.page_setup.orientation = "landscape"
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.print_title_rows = "1:5"
+
+    def fill(color):
+        return PatternFill("solid", fgColor=color)
+
+    def band(address, value, background, foreground, size=11, bold=True):
+        sheet.merge_cells(address)
+        cell = sheet[address.split(":")[0]]
+        cell.value = value
+        cell.fill = fill(background)
+        cell.font = Font(name="Calibri", size=size, bold=bold, color=foreground)
+        cell.alignment = Alignment(vertical="center", indent=1)
+
+    band("A1:M1", "FY2027 Key Initiatives & Budget Requirements", "F6F2E9", "171717", 20)
+    band("A2:M2", "Use the blank rows beside each KPI. For extra lines, insert a row within its block and copy the four input cells from a neighboring line.",
+         "F6F2E9", "48433B", 11, False)
+    band("A3:I3", "FY2027 Balanced Scorecard", "F0D487", "251D09", 13)
+    band("J3:M3", "Key Initiatives & Budget Requirements", "242424", "FFFFFF", 13)
+    band("F4:I4", "FY2027", "C99A22", "171209")
+    for index, height in enumerate([34, 24, 28, 22, 30], 1):
+        sheet.row_dimensions[index].height = height
+
+    source_fields = ["Perspective", "KPI", "Unit", "FY26 Actual", "Target Improvement",
+                     "FY27 Target", "Deadline", "Review Frequency", "Owner"]
+    headers = [*source_fields, "Key Initiative", "KPI Impact", "Budget Requirement", "Category"]
+    widths = [23, 35, 15, 15, 16, 15, 15, 16, 18, 38, 27, 28, 13]
+    for column, (label, width) in enumerate(zip(headers, widths), 1):
+        sheet.column_dimensions[get_column_letter(column)].width = width
+        if 6 <= column <= 9:
+            cell = sheet.cell(5, column, label)
+        else:
+            sheet.merge_cells(start_row=4, start_column=column, end_row=5, end_column=column)
+            cell = sheet.cell(4, column, label)
+        cell.fill = fill("171717" if column >= 10 else "F4D577" if column == 5 else "ECE9E3")
+        cell.font = Font(name="Calibri", bold=True, color="FFFFFF" if column >= 10 else "222222")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    categories = DataValidation(type="list", formula1='"CAPEX,OPEX,LVA,N/A"', allow_blank=True)
+    categories.showErrorMessage = True
+    categories.errorTitle = "Choose a category"
+    categories.error = "Select CAPEX, OPEX, LVA, or N/A from the dropdown."
+    sheet.add_data_validation(categories)
+    line = Side(style="thin", color="DAD5CA")
+    divider = Side(style="thin", color="A49A86")
+    first_row = 6
+    if not scorecard_rows:
+        band("A6:M6", "This department has no scorecard KPIs yet.", "F6F2E9", "48433B", 11, False)
+        sheet.row_dimensions[6].height = 26
+        return
+
+    for row in scorecard_rows:
+        last_row = first_row + 2
+        for column, field in enumerate(source_fields, 1):
+            value = row.get(field)
+            if field == "Deadline" and value:
+                value = as_date(value)
+            sheet.merge_cells(start_row=first_row, start_column=column, end_row=last_row, end_column=column)
+            cell = sheet.cell(first_row, column, value)
+            if isinstance(value, str):
+                cell.data_type = "s"
+            cell.fill = fill("FFF0B8" if column == 5 else "F8F6F0")
+            cell.font = Font(name="Calibri", color="25231F", bold=column in (2, 5, 6))
+            cell.alignment = Alignment(horizontal="right" if column in (4, 5, 6) else "left",
+                                       vertical="center", wrap_text=True, indent=1)
+            cell.border = Border(left=line, right=line, top=divider, bottom=divider)
+            if column in (4, 5, 6):
+                digits = "#,##0.##" if isinstance(value, float) and not value.is_integer() else "#,##0"
+                cell.number_format = f"+{digits};-{digits};0" if column == 5 else digits
+            elif column == 7:
+                cell.number_format = "mmm d, yyyy"
+        for row_number in range(first_row, last_row + 1):
+            sheet.row_dimensions[row_number].height = 34
+            for column in range(10, 14):
+                cell = sheet.cell(row_number, column)
+                cell.fill = fill("FFFFFF")
+                cell.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
+                cell.border = Border(left=line, right=line,
+                                     top=divider if row_number == first_row else line,
+                                     bottom=divider if row_number == last_row else line)
+        categories.add(f"M{first_row}:M{last_row}")
+        first_row = last_row + 1
+    sheet.print_area = f"A1:M{first_row - 1}"
+
+
 def scorecard_kpi(obj):
     """Use the measure name as the KPI, leaving the directional action in the objective."""
     goal = (obj.get("goal") or "").strip()
@@ -804,7 +903,7 @@ elif step == "5 · Presentation View":
 
 elif step == "6 · Excel Export":
     st.subheader("Day 2 Handoff · Excel Export")
-    st.write("Create a workbook with this department’s SWOT, TOWS objective mapping, strategy map, scorecard, dependencies, and blank Day 2 planning worksheets.")
+    st.write("Create a workbook with this department’s SWOT, TOWS objective mapping, strategy map, scorecard, dependencies, and a ready-to-fill initiatives and budget worksheet.")
     if st.button("Prepare workbook", type="primary"):
         buffer=io.BytesIO()
         swot_rows=[]
@@ -829,7 +928,7 @@ elif step == "6 · Excel Export":
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
         support_rows=[{"Objective":o["goal"],"Supporting Department":o["owner_department"],"Owner":o["owner"]} for o in own_rows if o["owner_department"] and o["owner_department"]!=department]
         with pd.ExcelWriter(buffer,engine="openpyxl") as writer:
-            sheets=[("SWOT",swot_rows),("TOWS Objectives",objective_rows),("Strategy Map",arrow_rows),("Balanced Scorecard",scorecard_rows),("Support Needed",support_rows),("Key Initiatives",[]),("Budget Requirements",[]),("Implementation Schedule",[])]
+            sheets=[("SWOT",swot_rows),("TOWS Objectives",objective_rows),("Strategy Map",arrow_rows),("Balanced Scorecard",scorecard_rows),("Support Needed",support_rows),("Implementation Schedule",[])]
             for name,data in sheets: pd.DataFrame(data).to_excel(writer,sheet_name=name,index=False)
             scorecard_sheet = writer.sheets["Balanced Scorecard"]
             headers = [cell.value for cell in scorecard_sheet[1]]
@@ -838,4 +937,5 @@ elif step == "6 · Excel Export":
                     number_format = "+#,##0.##;-#,##0.##;0" if header == "± Δ" else "#,##0.##;-#,##0.##"
                     for row_index in range(2, scorecard_sheet.max_row + 1):
                         scorecard_sheet.cell(row=row_index, column=column_index).number_format = number_format
+            add_initiatives_budget_sheet(writer.book, scorecard_rows)
         st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department.replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
