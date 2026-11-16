@@ -667,6 +667,26 @@ elif step == "4 · Balanced Scorecard":
         gb.configure_column("De-prioritize", width=130, editable=True, type=[], cellDataType="boolean", cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
         gb.configure_grid_options(getRowStyle=row_style, onCellValueChanged=refresh_changed_row, singleClickEdit=True, stopEditingWhenCellsLoseFocus=True, rowHeight=58, headerHeight=44, groupHeaderHeight=32)
         grid_options = gb.build()
+        # AG Grid attaches the listbox to the grid popup, outside the editing cell.
+        owner_department_menu = (
+            '.ag-root-wrapper:has([col-id="Owner Department"] '
+            '.ag-picker-field-wrapper[aria-expanded="true"]) .ag-select-list[role="listbox"]'
+        )
+        owner_department_css = {
+            owner_department_menu: {
+                "background-color": "#ffffff", "color": "#1e293b", "border": "1px solid #64748b"
+            },
+            f'{owner_department_menu} [role="option"]': {
+                "background-color": "#ffffff", "color": "#1e293b"
+            },
+            f'{owner_department_menu} [role="option"][aria-selected="true"], '
+            f'{owner_department_menu} [role="option"].ag-active-item': {
+                "background-color": "#dbeafe", "font-weight": "600"
+            },
+            f'{owner_department_menu} [role="option"]:hover': {
+                "background-color": "#bfdbfe"
+            },
+        }
         grid_response = AgGrid(
             scorecard_df,
             gridOptions=grid_options,
@@ -674,6 +694,7 @@ elif step == "4 · Balanced Scorecard":
             update_on=["cellValueChanged"],
             allow_unsafe_jscode=True,
             theme="streamlit",
+            custom_css=owner_department_css,
             height=min(600, 46 + 58 * len(scorecard_df)),
             fit_columns_on_grid_load=False,
             key=f"scorecard-grid-{department}",
