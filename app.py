@@ -267,7 +267,7 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
     divider = Side(style="thin", color="A49A86")
     first_row = 6
     if not scorecard_rows:
-        band("A6:N6", "This department has no scorecard KPIs yet.", "F6F2E9", "48433B", 11, False)
+        band("A6:N6", "This department has no KPIs assigned for initiative planning yet.", "F6F2E9", "48433B", 11, False)
         sheet.row_dimensions[6].height = 26
         return
 
@@ -938,11 +938,32 @@ elif step == "6 · Excel Export":
                     found=next((x["code"] for x in items if x["id"]==pair[key]),"")
                     codes.append(found)
             objective_rows.append({"Objective #":i,"SWOT Intersections":", ".join(codes),"Objective":objective_statement(o),"Perspective":o["perspective"]})
-        scorecard_rows=query('SELECT o.id AS "_Objective ID",o.perspective AS "Perspective",o.unit AS "Unit",o.baseline AS "FY26 Actual",s.fy26_target AS "FY26 Target",o.baseline-s.fy26_target AS "± Δ",o.improvement AS "Target Improvement",o.target AS "FY27 Target",o.deadline AS "Deadline",s.frequency AS "Review Frequency",s.owner AS "Owner",s.owner_department AS "Owner Department",s.deprioritized AS "De-prioritized" FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id=o.id WHERE o.department=? ORDER BY o.perspective,o.id', (department,))
-        for row in scorecard_rows:
-            row["KPI"] = scorecard_kpi(obj_by_id[row["_Objective ID"]])
-            del row["_Objective ID"]
-            row["Owner Department"] = department_name(row["Owner Department"])
+        export_scorecard_rows = query("""
+            SELECT o.goal, o.department, o.perspective AS "Perspective", o.unit AS "Unit",
+                   o.baseline AS "FY26 Actual", s.fy26_target AS "FY26 Target",
+                   o.baseline - s.fy26_target AS "± Δ", o.improvement AS "Target Improvement",
+                   o.target AS "FY27 Target", o.deadline AS "Deadline", s.frequency AS "Review Frequency",
+                   s.owner AS "Owner", s.owner_department AS "Owner Department",
+                   s.deprioritized AS "De-prioritized"
+            FROM v2_objectives o LEFT JOIN v2_scorecard s ON s.objective_id = o.id
+            WHERE o.department = ? OR s.owner_department = ?
+            ORDER BY o.perspective, o.id
+        """, (department, department))
+        scorecard_rows = []
+        initiative_rows = []
+        for row in export_scorecard_rows:
+            kpi = scorecard_kpi(row)
+            source_department = row.pop("department")
+            row.pop("goal")
+            owner_department = row["Owner Department"]
+            row["Owner Department"] = department_name(owner_department)
+            row["KPI"] = kpi
+            if source_department == department:
+                scorecard_rows.append(row)
+            if (owner_department or source_department) == department:
+                if source_department != department:
+                    row["KPI"] = f"{kpi}\nFrom {department_name(source_department)}"
+                initiative_rows.append(row)
         arrow_rows=[]
         for a in query("SELECT * FROM v2_arrows WHERE department=?", (department,)):
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
@@ -957,5 +978,5 @@ elif step == "6 · Excel Export":
                     number_format = "+#,##0.##;-#,##0.##;0" if header == "± Δ" else "#,##0.##;-#,##0.##"
                     for row_index in range(2, scorecard_sheet.max_row + 1):
                         scorecard_sheet.cell(row=row_index, column=column_index).number_format = number_format
-            add_initiatives_budget_sheet(writer.book, scorecard_rows)
+            add_initiatives_budget_sheet(writer.book, initiative_rows)
         st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department_name(department).replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
