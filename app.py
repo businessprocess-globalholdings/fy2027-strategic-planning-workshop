@@ -279,13 +279,12 @@ def objective_statement(obj):
     return f"{obj['goal']} by {improvement} {baseline} {target} by {deadline}"
 
 
-def add_initiatives_budget_sheet(workbook, scorecard_rows):
+def add_planning_sheet(workbook, title, heading, sections):
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.datavalidation import DataValidation
 
-    sheet = workbook.create_sheet("Initiatives & Budget")
-    workbook.active = sheet
+    sheet = workbook.create_sheet(title)
     sheet.sheet_view.showGridLines = False
     sheet.sheet_view.zoomScale = 80
     sheet.freeze_panes = "C6"
@@ -307,30 +306,19 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
         cell.font = Font(name="Calibri", size=size, bold=bold, color=foreground)
         cell.alignment = Alignment(vertical="center", indent=1)
 
-    band("A1:N1", "FY2027 Key Initiatives & Budget Requirements", "F6F2E9", "171717", 20)
-    band("A2:N2", "Use the blank rows beside each KPI. For extra lines, insert a row within its block and copy the input cells from a neighboring line.",
+    band("A1:N1", heading, "F6F2E9", "171717", 20)
+    band("A2:N2", "Use the blank planning rows beside each KPI. To add a line, insert a row within its KPI block and copy nearby input cells.",
          "F6F2E9", "48433B", 11, False)
-    band("A3:I3", "FY2027 Balanced Scorecard", "F0D487", "251D09", 13)
-    band("J3:N3", "Key Initiatives & Budget Requirements", "242424", "FFFFFF", 13)
-    band("F4:I4", "FY2027", "C99A22", "171209")
-    for index, height in enumerate([34, 24, 28, 22, 30], 1):
-        sheet.row_dimensions[index].height = height
+    sheet.row_dimensions[1].height = 34
+    sheet.row_dimensions[2].height = 24
 
     source_fields = ["Perspective", "KPI", "Unit", "FY26 Actual", "Target Improvement",
                      "FY27 Target", "Deadline", "Review Frequency", "Owner"]
-    headers = [*source_fields, "Key Initiative", "KPI Impact", "Budget Requirement (Php)",
-               "Budget Details/Justification", "Category"]
-    widths = [23, 35, 15, 15, 16, 15, 15, 16, 18, 36, 25, 20, 34, 13]
-    for column, (label, width) in enumerate(zip(headers, widths), 1):
+    planning_fields = ["Key Initiative", "KPI Impact", "Budget Requirement (Php)",
+                       "Budget Details/Justification", "Category"]
+    widths = [23, 35, 15, 15, 16, 15, 15, 16, 21, 36, 25, 20, 34, 13]
+    for column, width in enumerate(widths, 1):
         sheet.column_dimensions[get_column_letter(column)].width = width
-        if 6 <= column <= 9:
-            cell = sheet.cell(5, column, label)
-        else:
-            sheet.merge_cells(start_row=4, start_column=column, end_row=5, end_column=column)
-            cell = sheet.cell(4, column, label)
-        cell.fill = fill("171717" if column >= 10 else "F4D577" if column == 5 else "ECE9E3")
-        cell.font = Font(name="Calibri", bold=True, color="FFFFFF" if column >= 10 else "222222")
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     categories = DataValidation(type="list", formula1='"CAPEX,OPEX,LVA,N/A"', allow_blank=True)
     categories.showErrorMessage = True
@@ -339,51 +327,82 @@ def add_initiatives_budget_sheet(workbook, scorecard_rows):
     sheet.add_data_validation(categories)
     line = Side(style="thin", color="DAD5CA")
     divider = Side(style="thin", color="A49A86")
-    first_row = 6
-    if not scorecard_rows:
-        band("A6:N6", "This department has no KPIs assigned for initiative planning yet.", "F6F2E9", "48433B", 11, False)
-        sheet.row_dimensions[6].height = 26
-        return
+    first_row = 3
+    for index, (section, rows, reference, empty_message) in enumerate(sections):
+        if index:
+            first_row += 3
+        band(f"A{first_row}:I{first_row}", section, "F0D487", "251D09", 13)
+        band(f"J{first_row}:N{first_row}",
+             "Planning reference" if reference else "Key Initiatives & Budget Requirements",
+             "242424", "FFFFFF", 13)
+        band(f"F{first_row + 1}:I{first_row + 1}", "FY2027", "C99A22", "171209")
+        for offset, height in enumerate((28, 22, 32)):
+            sheet.row_dimensions[first_row + offset].height = height
+        fields = [*source_fields[:-1], "Supporting Department" if reference else "Owner"]
+        for column, label in enumerate([*fields, *planning_fields], 1):
+            top, bottom = first_row + 1, first_row + 2
+            if 6 <= column <= 9:
+                cell = sheet.cell(bottom, column, label)
+            else:
+                sheet.merge_cells(start_row=top, start_column=column, end_row=bottom, end_column=column)
+                cell = sheet.cell(top, column, label)
+            cell.fill = fill("171717" if column >= 10 else "F4D577" if column == 5 else "ECE9E3")
+            cell.font = Font(name="Calibri", bold=True, color="FFFFFF" if column >= 10 else "222222")
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        first_row += 3
+        if not rows:
+            band(f"A{first_row}:N{first_row}", empty_message, "F6F2E9", "48433B", 11, False)
+            sheet.cell(first_row, 1).border = Border(left=line, right=line, top=line, bottom=line)
+            sheet.row_dimensions[first_row].height = 30
+            first_row += 1
+            continue
 
-    for row in scorecard_rows:
-        initiatives = row.get("Key Initiatives", [])
-        last_row = first_row + max(3, len(initiatives) + 1) - 1
-        for column, field in enumerate(source_fields, 1):
-            value = row.get(field)
-            if field == "Deadline" and value:
-                value = as_date(value)
-            sheet.merge_cells(start_row=first_row, start_column=column, end_row=last_row, end_column=column)
-            cell = sheet.cell(first_row, column, value)
-            if isinstance(value, str):
+        for row in sorted(rows, key=lambda row: (row["Perspective"], bool(row["De-prioritized"]))):
+            initiatives = row.get("Key Initiatives", [])
+            last_row = first_row + (max(1, len(initiatives)) if reference else max(3, len(initiatives) + 1)) - 1
+            muted = bool(row["De-prioritized"]) and not reference
+            for column, field in enumerate(fields, 1):
+                value = row.get(field)
+                if field == "KPI" and muted:
+                    value = f"{value}\nLower priority"
+                if field == "Deadline" and value:
+                    value = as_date(value)
+                if first_row < last_row:
+                    sheet.merge_cells(start_row=first_row, start_column=column, end_row=last_row, end_column=column)
+                cell = sheet.cell(first_row, column, value)
+                if isinstance(value, str):
+                    cell.data_type = "s"
+                cell.fill = fill("ECEDEF" if muted else "FFF0B8" if column == 5 else "F8F6F0")
+                cell.font = Font(name="Calibri", color="25231F", bold=column in (2, 5, 6))
+                cell.alignment = Alignment(horizontal="right" if column in (4, 5, 6) else "left",
+                                           vertical="center", wrap_text=True, indent=1)
+                cell.border = Border(left=line, right=line, top=divider, bottom=divider)
+                if column in (4, 5, 6):
+                    digits = "#,##0.##" if isinstance(value, float) and not value.is_integer() else "#,##0"
+                    cell.number_format = f"+{digits};-{digits};0" if column == 5 else digits
+                elif column == 7:
+                    cell.number_format = "mmm d, yyyy"
+            for row_number in range(first_row, last_row + 1):
+                sheet.row_dimensions[row_number].height = 34
+                for column in range(10, 15):
+                    cell = sheet.cell(row_number, column)
+                    cell.fill = fill("ECEDEF" if muted else "FBFAF7" if reference else "FFFFFF")
+                    cell.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
+                    cell.border = Border(left=line, right=line,
+                                         top=divider if row_number == first_row else line,
+                                         bottom=divider if row_number == last_row else line)
+                    if column == 12:
+                        cell.number_format = '"Php "#,##0.00'
+            for row_number, initiative in enumerate(initiatives, first_row):
+                cell = sheet.cell(row_number, 10, initiative)
                 cell.data_type = "s"
-            cell.fill = fill("FFF0B8" if column == 5 else "F8F6F0")
-            cell.font = Font(name="Calibri", color="25231F", bold=column in (2, 5, 6))
-            cell.alignment = Alignment(horizontal="right" if column in (4, 5, 6) else "left",
-                                       vertical="center", wrap_text=True, indent=1)
-            cell.border = Border(left=line, right=line, top=divider, bottom=divider)
-            if column in (4, 5, 6):
-                digits = "#,##0.##" if isinstance(value, float) and not value.is_integer() else "#,##0"
-                cell.number_format = f"+{digits};-{digits};0" if column == 5 else digits
-            elif column == 7:
-                cell.number_format = "mmm d, yyyy"
-        for row_number in range(first_row, last_row + 1):
-            sheet.row_dimensions[row_number].height = 34
-            for column in range(10, 15):
-                cell = sheet.cell(row_number, column)
-                cell.fill = fill("FFFFFF")
-                cell.alignment = Alignment(vertical="center", wrap_text=True, indent=1)
-                cell.border = Border(left=line, right=line,
-                                     top=divider if row_number == first_row else line,
-                                     bottom=divider if row_number == last_row else line)
-                if column == 12:
-                    cell.number_format = '"Php "#,##0.00'
-        for row_number, initiative in enumerate(initiatives, first_row):
-            cell = sheet.cell(row_number, 10, initiative)
-            cell.data_type = "s"
-            sheet.row_dimensions[row_number].height = max(34, 15 * ((len(initiative) + 29) // 30))
-        categories.add(f"N{first_row}:N{last_row}")
-        first_row = last_row + 1
+                sheet.row_dimensions[row_number].height = max(34, 15 * ((len(initiative) + 29) // 30))
+            if not reference:
+                categories.add(f"N{first_row}:N{last_row}")
+            first_row = last_row + 1
     sheet.print_area = f"A1:N{first_row - 1}"
+    return sheet
+
 
 
 def scorecard_kpi(obj):
@@ -1040,12 +1059,14 @@ elif step == "6 · Excel Export":
             SELECT i.objective_id, i.initiative FROM v2_key_initiatives i
             JOIN v2_objectives o ON o.id = i.objective_id
             LEFT JOIN v2_scorecard s ON s.objective_id = o.id
-            WHERE COALESCE(NULLIF(s.owner_department, ''), o.department) = ?
+            WHERE o.department = ? OR s.owner_department = ?
             ORDER BY i.id
-        """, (department,)):
+        """, (department, department)):
             saved_initiatives.setdefault(item["objective_id"], []).append(item["initiative"])
         scorecard_rows = []
-        initiative_rows = []
+        main_planning_rows = []
+        support_planning_rows = []
+        dependency_rows = []
         for row in export_scorecard_rows:
             kpi = scorecard_kpi(row)
             objective_id = row.pop("id")
@@ -1054,12 +1075,19 @@ elif step == "6 · Excel Export":
             owner_department = row["Owner Department"]
             row["Owner Department"] = department_name(owner_department)
             row["KPI"] = kpi
+            planning_row = {**row, "Key Initiatives": saved_initiatives.get(objective_id, [])}
             if source_department == department:
                 scorecard_rows.append(row)
-            if (owner_department or source_department) == department:
-                if source_department != department:
-                    row["KPI"] = f"{kpi}\nFrom {department_name(source_department)}"
-                initiative_rows.append({**row, "Key Initiatives": saved_initiatives.get(objective_id, [])})
+                if owner_department and owner_department != department:
+                    support_planning_rows.append({
+                        **planning_row, "Supporting Department": department_name(owner_department)
+                    })
+                else:
+                    main_planning_rows.append(planning_row)
+            elif owner_department == department:
+                dependency_rows.append({
+                    **planning_row, "KPI": f"{kpi}\nFrom {department_name(source_department)}"
+                })
         arrow_rows=[]
         for a in query("SELECT * FROM v2_arrows WHERE department=?", (department,)):
             if a["source_id"] in obj_by_id and a["target_id"] in obj_by_id: arrow_rows.append({"From":obj_by_id[a["source_id"]]["goal"],"To":obj_by_id[a["target_id"]]["goal"],"Arrow":a["line_type"]})
@@ -1074,5 +1102,16 @@ elif step == "6 · Excel Export":
                     number_format = "+#,##0.##;-#,##0.##;0" if header == "± Δ" else "#,##0.##;-#,##0.##"
                     for row_index in range(2, scorecard_sheet.max_row + 1):
                         scorecard_sheet.cell(row=row_index, column=column_index).number_format = number_format
-            add_initiatives_budget_sheet(writer.book, initiative_rows)
+            main_sheet = add_planning_sheet(
+                writer.book, "Initiatives & Budget", "FY2027 Key Initiatives & Budget Requirements",
+                [
+                    ("Main Scorecard", main_planning_rows, False, "No KPIs to plan for this department."),
+                    ("Support Needed", support_planning_rows, True, "No KPIs assigned to supporting departments."),
+                ],
+            )
+            add_planning_sheet(
+                writer.book, "Incoming Dependencies", "Dependency from Other Departments",
+                [("Incoming Dependencies", dependency_rows, False, "No incoming KPIs assigned to this department.")],
+            )
+            writer.book.active = main_sheet
         st.download_button("Download Excel workbook",buffer.getvalue(),file_name=f"FY2027_{department_name(department).replace(' ','_')}_Day1_Handoff.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
