@@ -21,9 +21,12 @@ DEPARTMENT_NAMES = {
     "Department 1": "Freight Forwarding",
     "Department 2": "Operations",
     "Department 3": "Accounting",
-    "Department 4": "Human Resources",
+    "Department 4": "Human Resources and Admin",
     "Department 5": "Test Department",
+    "Department 6": "Special Cargo",
 }
+if not {"Department 6", "Special Cargo"}.intersection(DEPARTMENTS):
+    DEPARTMENTS.append("Department 6")
 DEPARTMENT_KEYS_BY_NAME = {name: key for key, name in DEPARTMENT_NAMES.items() if key in DEPARTMENTS}
 
 
