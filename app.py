@@ -27,6 +27,7 @@ DEPARTMENT_NAMES = {
 }
 if not {"Department 6", "Special Cargo"}.intersection(DEPARTMENTS):
     DEPARTMENTS.append("Department 6")
+DEPARTMENTS.sort(key=lambda key: DEPARTMENT_NAMES.get(key, key) == "Test Department")
 DEPARTMENT_KEYS_BY_NAME = {name: key for key, name in DEPARTMENT_NAMES.items() if key in DEPARTMENTS}
 
 
